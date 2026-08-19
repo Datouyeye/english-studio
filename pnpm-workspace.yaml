@@ -1,0 +1,10 @@
+allowBuilds:
+  '@prisma/engines': true
+  prisma: true
+  esbuild: false
+  better-sqlite3: true
+  sharp: false
+  unrs-resolver: false
+minimumReleaseAgeExclude:
+  - better-sqlite3@13.0.3
+  - tsx@4.23.7

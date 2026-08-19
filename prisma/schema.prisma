@@ -1,0 +1,60 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum TargetLevel {
+  CET4
+  CET6
+  IELTS
+}
+
+enum ItemType {
+  word
+  phrase
+  sentence
+}
+
+enum SourceType {
+  ai
+  manual
+}
+
+model Material {
+  id             String         @id @default(cuid())
+  title          String
+  originalText   String
+  adaptedText    String
+  targetLevel    TargetLevel
+  sourceLanguage String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  learningItems  LearningItem[]
+
+  @@index([createdAt])
+}
+
+model LearningItem {
+  id             String     @id @default(cuid())
+  materialId     String?
+  text           String
+  normalizedText String
+  itemType       ItemType
+  meaningZh      String     @default("")
+  explanationEn  String     @default("")
+  writingUsage   String     @default("")
+  sourceSentence String     @default("")
+  notes          String     @default("")
+  sourceType     SourceType
+  sortOrder      Int        @default(0)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  material       Material?  @relation(fields: [materialId], references: [id], onDelete: SetNull)
+
+  @@unique([materialId, normalizedText])
+  @@index([createdAt])
+}
