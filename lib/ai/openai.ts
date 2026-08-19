@@ -3,13 +3,20 @@ import { z } from "zod";
 import {
   adaptedMaterialOutputSchema,
   explanationOutputSchema,
+  practiceSentenceBatchSchema,
+  translationJudgementSchema,
   type AdaptedMaterialOutput,
   type ExplanationOutput,
+  type PracticeSentenceBatch,
+  type PracticeSentenceItem,
+  type TranslationJudgement,
 } from "./schemas";
 import type {
   AIProvider,
   ExplainSelectedTextInput,
   GenerateAdaptedMaterialInput,
+  GeneratePracticeSentencesInput,
+  JudgeTranslationInput,
 } from "./types";
 import { DEFAULT_MODEL } from "./constants";
 import { AIOutputError, AIRequestError } from "./errors";
@@ -107,6 +114,60 @@ function buildExplainPrompt(input: ExplainSelectedTextInput): string {
 - writingUsage：写作示例，说明这个表达如何用在写作中（给一个英文例句，并说明适合的写作场景）。`;
 }
 
+function buildJudgePrompt(input: JudgeTranslationInput): string {
+  return `你是一名严格但不苛刻的英语翻译评估教练。用户在练习「中译英」：先看中文句子，凭自己的能力翻译成英文。
+
+【中文原句】
+${input.zhText}
+
+【用户的英文翻译】
+${input.userTranslation || "（用户未填写）"}
+
+【参考译文】（仅供对照参考，不是唯一正确答案）
+${input.referenceTranslation}
+
+请从三个维度评估用户的翻译：
+1. 语义完整性（最重要）：原句的所有信息点是否都表达清楚？有没有明显的漏译或错译？
+2. 语法正确性：时态、主谓一致、用词、句式是否正确？是否影响理解？
+3. 表达自然度：是否地道、自然？（次要维度）
+
+判定标准：
+- passed = true 的条件：意思完整（无重大漏译/错译）+ 语法基本正确（小错误不影响理解即可）+ 表达能让英语母语者看懂。
+- 只要语义正确、表达自然，即使与参考译文用词句式完全不同，也算通过；不要拿参考译文当唯一标准。
+- 这是学习工具，完成度高即可通过，追求完美反而打击积极性，请适度宽容。
+
+只输出一个合法的 JSON 对象，不要输出任何额外文字或代码围栏：
+- score：0-5 的整数（5 为完美）；
+- passed：布尔值，score >= 4 时为 true；
+- feedback：简短的中文反馈（1-2 句话），指出主要问题或肯定做得好的地方；
+- suggestions：1-3 条改进建议（英文表达或短语，给出更地道/更准确的改法；通过时可为空数组）。`;
+}
+
+function buildGenerateSentencesPrompt(input: GeneratePracticeSentencesInput): string {
+  const existing =
+    input.existingTexts.length > 0
+      ? input.existingTexts.map((t) => `- ${t}`).join("\n")
+      : "（暂无）";
+  return `你是一名英语学习内容编辑。请生成「中译英」练习题目，帮助用户积累生活和工作场景的真实表达。
+
+要求：
+- 生成 ${input.count} 条题目，中文句子 + 对应的自然英文参考译文。
+- 句子必须真实、实用、贴近日常口语，覆盖【生活场景】与【工作场景】各约一半：
+  - 生活场景（scene=life）：点餐、购物、问路、日常聊天、旅行、就医、与人打交道等；
+  - 工作场景（scene=work）：开会、发邮件、汇报进度、沟通协作、面试、接待客户、项目讨论等。
+- 每句中文 10-35 字左右，表达一个完整意思；参考译文要自然地道、符合英语母语者习惯，避免中式英语，给出最常用的说法即可，不要多种版本。
+- 不要与【已有题目】重复（包括同义改写）。
+
+【已有题目】（避免重复）
+${existing}
+
+只输出一个合法的 JSON 对象，不要输出任何额外文字或代码围栏：
+- sentences：数组，长度必须等于 ${input.count}，每项包含：
+  - zhText：中文句子；
+  - enReference：对应的自然英文参考译文；
+  - scene：只能为 "work" 或 "life"。`;
+}
+
 /**
  * OpenAI 兼容的 Chat Completions 实现（默认面向 DeepSeek，也可指向任何
  * 支持 OpenAI Chat Completions 格式的服务）。使用 response_format json_object
@@ -149,6 +210,38 @@ export class OpenAIProvider implements AIProvider {
     const parsed = explanationOutputSchema.safeParse(raw);
     if (parsed.success) return parsed.data;
     throw new AIOutputError(operation, formatZodIssues(parsed.error));
+  }
+
+  async judgeTranslation(input: JudgeTranslationInput): Promise<TranslationJudgement> {
+    const operation = "judgeTranslation";
+    const prompt = buildJudgePrompt(input);
+    const first = await this.requestStructuredJson<TranslationJudgement>(operation, prompt);
+    const parsed = translationJudgementSchema.safeParse(first);
+    if (parsed.success) return parsed.data;
+
+    const issues = formatZodIssues(parsed.error);
+    const retryPrompt = `${prompt}\n\n上次输出未通过校验，问题如下：\n${issues}\n请修正后重新输出完整、合法的 JSON。`;
+    const second = await this.requestStructuredJson<TranslationJudgement>(operation, retryPrompt);
+    const parsed2 = translationJudgementSchema.safeParse(second);
+    if (parsed2.success) return parsed2.data;
+    throw new AIOutputError(operation, `连续两次输出未通过校验：\n${formatZodIssues(parsed2.error)}`);
+  }
+
+  async generatePracticeSentences(
+    input: GeneratePracticeSentencesInput,
+  ): Promise<PracticeSentenceItem[]> {
+    const operation = "generatePracticeSentences";
+    const prompt = buildGenerateSentencesPrompt(input);
+    const first = await this.requestStructuredJson<PracticeSentenceBatch>(operation, prompt);
+    const parsed = practiceSentenceBatchSchema.safeParse(first);
+    if (parsed.success) return parsed.data.sentences;
+
+    const issues = formatZodIssues(parsed.error);
+    const retryPrompt = `${prompt}\n\n上次输出未通过校验，问题如下：\n${issues}\n请修正后重新输出完整、合法的 JSON。`;
+    const second = await this.requestStructuredJson<PracticeSentenceBatch>(operation, retryPrompt);
+    const parsed2 = practiceSentenceBatchSchema.safeParse(second);
+    if (parsed2.success) return parsed2.data.sentences;
+    throw new AIOutputError(operation, `连续两次输出未通过校验：\n${formatZodIssues(parsed2.error)}`);
   }
 
   private async requestStructuredJson<T>(operation: string, prompt: string): Promise<T> {

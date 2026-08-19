@@ -24,6 +24,11 @@ enum SourceType {
   manual
 }
 
+enum PracticeScene {
+  work
+  life
+}
+
 model Material {
   id             String         @id @default(cuid())
   title          String
@@ -56,5 +61,18 @@ model LearningItem {
   material       Material?  @relation(fields: [materialId], references: [id], onDelete: SetNull)
 
   @@unique([materialId, normalizedText])
+  @@index([createdAt])
+}
+
+model PracticeSentence {
+  id          String        @id @default(cuid())
+  zhText      String
+  enReference String
+  scene       PracticeScene
+  sourceType  SourceType    @default(ai)
+  createdAt   DateTime      @default(now())
+
+  @@unique([zhText])
+  @@index([scene])
   @@index([createdAt])
 }

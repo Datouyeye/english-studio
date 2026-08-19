@@ -36,3 +36,30 @@ export const explanationOutputSchema = z.object({
   writingUsage: z.string().trim().min(1, "writingUsage 不能为空").max(500),
 });
 export type ExplanationOutput = z.infer<typeof explanationOutputSchema>;
+
+export const practiceSceneSchema = z.enum(["work", "life"]);
+export type PracticeScene = z.infer<typeof practiceSceneSchema>;
+
+/** 翻译完成度判定结果。passed 为 true 即「完成度高」，不要求与参考译文一致。 */
+export const translationJudgementSchema = z.object({
+  score: z.number().int().min(0, "score 最小 0").max(5, "score 最大 5"),
+  passed: z.boolean(),
+  feedback: z.string().trim().min(1, "feedback 不能为空").max(500),
+  suggestions: z.array(z.string().trim().min(1).max(300)).max(5, "suggestions 最多 5 条"),
+});
+export type TranslationJudgement = z.infer<typeof translationJudgementSchema>;
+
+export const practiceSentenceItemSchema = z.object({
+  zhText: z.string().trim().min(1, "zhText 不能为空").max(200, "zhText 超过长度限制"),
+  enReference: z.string().trim().min(1, "enReference 不能为空").max(500, "enReference 超过长度限制"),
+  scene: practiceSceneSchema,
+});
+export type PracticeSentenceItem = z.infer<typeof practiceSentenceItemSchema>;
+
+export const practiceSentenceBatchSchema = z.object({
+  sentences: z
+    .array(practiceSentenceItemSchema)
+    .min(1, "至少 1 条")
+    .max(10, "最多 10 条"),
+});
+export type PracticeSentenceBatch = z.infer<typeof practiceSentenceBatchSchema>;

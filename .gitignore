@@ -50,4 +50,7 @@ work/
 # dev.db 主动入库（个人学习数据，跨设备延续用）
 generated/
 
+# 集成测试临时数据库（运行测试时自动重建）
+tests/test.db
+
 /app/generated/prisma
