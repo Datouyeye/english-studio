@@ -17,6 +17,7 @@ import type {
   GenerateAdaptedMaterialInput,
   GeneratePracticeSentencesInput,
   JudgeTranslationInput,
+  RefineUserSentencesInput,
 } from "./types";
 import { DEFAULT_MODEL } from "./constants";
 import { AIOutputError, AIRequestError } from "./errors";
@@ -140,7 +141,7 @@ ${input.referenceTranslation}
 - score：0-5 的整数（5 为完美）；
 - passed：布尔值，score >= 4 时为 true；
 - feedback：简短的中文反馈（1-2 句话），指出主要问题或肯定做得好的地方；
-- suggestions：1-3 条改进建议（英文表达或短语，给出更地道/更准确的改法；通过时可为空数组）。`;
+- suggestions：1-3 条具体的修改建议，每条采用「把“X”改成“Y”」的格式：X 是用户译文中的某个词、短语或句式结构，Y 是更地道准确的改法。只针对用户译文里确实需要改的地方，不要整句重写；如果整句都需要改，也只给出最关键的一处。通过时可为空数组。`;
 }
 
 function buildGenerateSentencesPrompt(input: GeneratePracticeSentencesInput): string {
@@ -148,22 +149,63 @@ function buildGenerateSentencesPrompt(input: GeneratePracticeSentencesInput): st
     input.existingTexts.length > 0
       ? input.existingTexts.map((t) => `- ${t}`).join("\n")
       : "（暂无）";
-  return `你是一名英语学习内容编辑。请生成「中译英」练习题目，帮助用户积累生活和工作场景的真实表达。
+  return `你是一名英语口语与写作话题编辑。请生成「中译英」练习题目：给用户一句有内容的中文表达，让用户翻译成英文。题目风格对标英语口语考试/面试话题，而不是日常寒暄。
 
-要求：
-- 生成 ${input.count} 条题目，中文句子 + 对应的自然英文参考译文。
-- 句子必须真实、实用、贴近日常口语，覆盖【生活场景】与【工作场景】各约一半：
-  - 生活场景（scene=life）：点餐、购物、问路、日常聊天、旅行、就医、与人打交道等；
-  - 工作场景（scene=work）：开会、发邮件、汇报进度、沟通协作、面试、接待客户、项目讨论等。
-- 每句中文 10-35 字左右，表达一个完整意思；参考译文要自然地道、符合英语母语者习惯，避免中式英语，给出最常用的说法即可，不要多种版本。
-- 不要与【已有题目】重复（包括同义改写）。
+【题目质量要求】（非常重要）
+1. 每句中文必须包含实质内容与信息量：观点、理由、建议、反思、判断、具体情境描述等，让用户"有东西可翻译"。
+2. 想象这是英语口语考试/面试/工作沟通中会真实说出口的话。参考这类表达：
+   - "我觉得一个公司的成功不应该只用赚钱来衡量，更重要的是它对社会有没有贡献。"
+   - "远程办公虽然灵活，但我觉得同事之间缺少面对面交流，时间久了会影响团队默契。"
+   - "工作压力大的时候，我会先停下来把事情按优先级排好，而不是硬扛着赶进度。"
+3. 严禁以下类型（过于琐碎/低信息量）：
+   - 天气寒暄："今天天气真不错，我们出去走走吧。"
+   - 点餐问路："请问这附近有地铁站吗？" / "我想订一个靠窗的位置。"
+   - 简单问候："我们好久没见了。"
+4. 句子长度适中：中文 15-45 字，表达一个完整、有层次的意思，可以有简单的原因或转折。
+5. 场景分配：
+   - 工作场景（scene=work）：会议发言、汇报、协作沟通、面试、职业观点、工作方法等有实质内容的表达；
+   - 生活场景（scene=life）：对生活现象的观察与观点、个人经历反思、与他人深入交流时会说的话等（不是寒暄）。
+6. 参考译文要自然地道、符合英语母语者表达习惯，避免中式英语。
 
-【已有题目】（避免重复）
+【已有题目】（避免重复，包括同义改写）
 ${existing}
 
 只输出一个合法的 JSON 对象，不要输出任何额外文字或代码围栏：
 - sentences：数组，长度必须等于 ${input.count}，每项包含：
   - zhText：中文句子；
+  - enReference：对应的自然英文参考译文；
+  - scene：只能为 "work" 或 "life"。`;
+}
+
+function buildRefineSentencesPrompt(input: RefineUserSentencesInput): string {
+  const existing =
+    input.existingTexts.length > 0
+      ? input.existingTexts.map((t) => `- ${t}`).join("\n")
+      : "（暂无）";
+  return `你是一名英语学习内容编辑。用户提供了一段中文——很可能是他日常生活中或工作里真实会说的话。请把它加工成适合「中译英」练习的题目。
+
+【用户输入】
+"""
+${input.text}
+"""
+
+【加工要求】
+1. 理解内容：先读懂整段话的意思和语境。
+2. 拆分：把输入拆分成适合单句翻译练习的句子：
+   - 每句表达一个完整、独立的意思，中文 15-45 字；
+   - 长的复合句拆成 2-3 个短句，但不要拆出没有独立意思的半句；
+   - 太碎的短句可以适当合并；
+   - 输入本身就是一句话时，保留为 1 条即可（除非明显过长）。
+3. 润色：把口语化、啰嗦、含糊的表达润色成清晰自然的中文，方便翻译练习；不得改变原意、不得添加原内容没有的信息。
+4. 场景判断：按内容判断每条属于工作场景（work）还是生活场景（life）。
+5. 为每条生成自然地道、符合英语母语者习惯的英文参考译文，避免中式英语。
+
+【已有题目】（避免重复，包括同义改写）
+${existing}
+
+只输出一个合法的 JSON 对象，不要输出任何额外文字或代码围栏：
+- sentences：数组（1-10 条），每项包含：
+  - zhText：润色后的中文句子；
   - enReference：对应的自然英文参考译文；
   - scene：只能为 "work" 或 "life"。`;
 }
@@ -232,6 +274,21 @@ export class OpenAIProvider implements AIProvider {
   ): Promise<PracticeSentenceItem[]> {
     const operation = "generatePracticeSentences";
     const prompt = buildGenerateSentencesPrompt(input);
+    const first = await this.requestStructuredJson<PracticeSentenceBatch>(operation, prompt);
+    const parsed = practiceSentenceBatchSchema.safeParse(first);
+    if (parsed.success) return parsed.data.sentences;
+
+    const issues = formatZodIssues(parsed.error);
+    const retryPrompt = `${prompt}\n\n上次输出未通过校验，问题如下：\n${issues}\n请修正后重新输出完整、合法的 JSON。`;
+    const second = await this.requestStructuredJson<PracticeSentenceBatch>(operation, retryPrompt);
+    const parsed2 = practiceSentenceBatchSchema.safeParse(second);
+    if (parsed2.success) return parsed2.data.sentences;
+    throw new AIOutputError(operation, `连续两次输出未通过校验：\n${formatZodIssues(parsed2.error)}`);
+  }
+
+  async refineUserSentences(input: RefineUserSentencesInput): Promise<PracticeSentenceItem[]> {
+    const operation = "refineUserSentences";
+    const prompt = buildRefineSentencesPrompt(input);
     const first = await this.requestStructuredJson<PracticeSentenceBatch>(operation, prompt);
     const parsed = practiceSentenceBatchSchema.safeParse(first);
     if (parsed.success) return parsed.data.sentences;

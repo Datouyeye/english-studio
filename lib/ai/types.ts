@@ -31,6 +31,13 @@ export interface GeneratePracticeSentencesInput {
   existingTexts: string[];
 }
 
+export interface RefineUserSentencesInput {
+  /** 用户输入的原始中文（可能是一段话或几句话）。 */
+  text: string;
+  /** 题库已有的中文句子，用于提示模型避免重复。 */
+  existingTexts: string[];
+}
+
 /**
  * AI 提供方接口。第一版只实现 OpenAI，Mock 仅用于测试。
  * 未来更换模型/服务商时实现该接口并在工厂中替换即可。
@@ -41,4 +48,5 @@ export interface AIProvider {
   explainSelectedText(input: ExplainSelectedTextInput): Promise<ExplanationOutput>;
   judgeTranslation(input: JudgeTranslationInput): Promise<TranslationJudgement>;
   generatePracticeSentences(input: GeneratePracticeSentencesInput): Promise<PracticeSentenceItem[]>;
+  refineUserSentences(input: RefineUserSentencesInput): Promise<PracticeSentenceItem[]>;
 }

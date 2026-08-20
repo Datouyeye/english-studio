@@ -10,6 +10,7 @@ import type {
   GenerateAdaptedMaterialInput,
   GeneratePracticeSentencesInput,
   JudgeTranslationInput,
+  RefineUserSentencesInput,
 } from "./types";
 
 /**
@@ -114,5 +115,21 @@ export class MockAIProvider implements AIProvider {
       result.push({ zhText, enReference, scene: i % 2 === 0 ? "life" : "work" });
     }
     return result;
+  }
+
+  async refineUserSentences(input: RefineUserSentencesInput): Promise<PracticeSentenceItem[]> {
+    const existing = new Set(input.existingTexts.map((t) => t.trim()));
+    const parts = input.text
+      .split(/[。！？!?；;]/)
+      .map((s) => s.trim())
+      .filter((s) => s.length >= 5 && !existing.has(s));
+    if (parts.length === 0) {
+      parts.push(input.text.trim());
+    }
+    return parts.slice(0, 10).map((zhText) => ({
+      zhText,
+      enReference: `I believe ${zhText} matters a lot in daily life. (Mock translation)`,
+      scene: zhText.includes("工作") || zhText.includes("会议") || zhText.includes("客户") ? "work" : "life",
+    }));
   }
 }
