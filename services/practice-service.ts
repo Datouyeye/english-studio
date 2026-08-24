@@ -79,12 +79,87 @@ export async function countTodaySentences(): Promise<number> {
   });
 }
 
+export interface SaveAttemptInput {
+  sentenceId: string;
+  zhText: string;
+  userTranslation: string;
+  referenceTranslation: string;
+  score: number;
+  passed: boolean;
+  feedback: string;
+}
+
+/**
+ * 保存/更新一条翻译练习记录（每题只保留最后一条，按 sentenceId 覆盖）。
+ * 用于学习库「翻译历史」回溯，以及练习页"答过的题不再出现"的判定依据。
+ */
+export async function saveTranslationAttempt(input: SaveAttemptInput): Promise<void> {
+  await prisma.translationAttempt.upsert({
+    where: { sentenceId: input.sentenceId },
+    update: {
+      userTranslation: input.userTranslation,
+      score: input.score,
+      passed: input.passed,
+      feedback: input.feedback,
+    },
+    create: input,
+  });
+}
+
+/** 已答过的题目 ID 集合（有练习记录 = 答过）。 */
+async function answeredSentenceIds(): Promise<Set<string>> {
+  const rows = await prisma.translationAttempt.findMany({ select: { sentenceId: true } });
+  return new Set(rows.map((r) => r.sentenceId));
+}
+
+/**
+ * 练习取题：排除已答过的题目（有记录 = 答过）和被跳过的题目，返回未答题列表。
+ * 这样"答过的题不再保留"，离开再回来也会接着未答的题继续。
+ */
+export async function listUnansweredSentences(limit = 20): Promise<PracticeSentenceListItem[]> {
+  const answered = await answeredSentenceIds();
+  const rows = await prisma.practiceSentence.findMany({
+    where: { skipped: false },
+    orderBy: { createdAt: "desc" },
+    take: Math.max(limit * 3, 60),
+    select: { id: true, zhText: true, scene: true, createdAt: true },
+  });
+  return rows.filter((r) => !answered.has(r.id)).slice(0, limit);
+}
+
+/** 跳过一题：标记为 skipped，之后不再出现在练习列表（相当于删除）。 */
+export async function skipSentence(sentenceId: string): Promise<void> {
+  const sentence = await prisma.practiceSentence.findUnique({
+    where: { id: sentenceId },
+    select: { id: true },
+  });
+  if (!sentence) {
+    throw new AppError("题目不存在或已被删除", "PRACTICE_SENTENCE_NOT_FOUND");
+  }
+  await prisma.practiceSentence.update({
+    where: { id: sentenceId },
+    data: { skipped: true },
+  });
+}
+
+/** 历史翻译记录（学习库「翻译历史」用），最新在前。 */
+export async function listTranslationAttempts(limit = 50) {
+  return prisma.translationAttempt.findMany({
+    orderBy: { updatedAt: "desc" },
+    take: limit,
+  });
+}
+
 export interface PracticePageData {
   sentences: PracticeSentenceListItem[];
   /** 今日新增条数（用于状态提示模块）。 */
   todayCount: number;
   /** 题库总条数。 */
   totalCount: number;
+  /** 已答过的题数。 */
+  answeredCount: number;
+  /** 已处理题数（答过 + 跳过），用于"第 X / N 题"的进度显示。 */
+  processedCount: number;
 }
 
 /**
@@ -93,10 +168,12 @@ export interface PracticePageData {
  * 只影响"今日新增条数"，绝不让 AI 故障挡住整个页面。
  */
 export async function preparePracticePage(limit = 20): Promise<PracticePageData> {
-  const [sentences, todayCount, totalCount] = await Promise.all([
-    listPracticeSentences(limit),
+  const [sentences, todayCount, totalCount, answeredCount, skippedCount] = await Promise.all([
+    listUnansweredSentences(limit),
     countTodaySentences(),
     prisma.practiceSentence.count(),
+    prisma.translationAttempt.count(),
+    prisma.practiceSentence.count({ where: { skipped: true } }),
   ]);
 
   try {
@@ -107,9 +184,11 @@ export async function preparePracticePage(limit = 20): Promise<PracticePageData>
   }
 
   return {
-    sentences: await listPracticeSentences(limit),
+    sentences: await listUnansweredSentences(limit),
     todayCount: await countTodaySentences(),
     totalCount,
+    answeredCount,
+    processedCount: answeredCount + skippedCount,
   };
 }
 
@@ -192,6 +271,8 @@ export interface JudgeTranslationResult extends TranslationJudgement {
  * 判定用户的中译英完成度。
  * - 参考答案只在判定完成后随结果返回（答案防偷看：判定前不暴露）。
  * - passed=false 时用户可选择重试或直接进入下一题（是否重试由前端决定）。
+ * - 判定完成后自动保存练习记录（题目 + 用户最后一版答案 + 标准答案），
+ *   供学习库「翻译历史」回溯，并标记该题"已答过"。
  */
 export async function judgeTranslation(
   sentenceId: string,
@@ -199,15 +280,33 @@ export async function judgeTranslation(
 ): Promise<JudgeTranslationResult> {
   const sentence = await getSentenceWithReference(sentenceId);
   const provider = getAIProvider();
+  const trimmed = userTranslation.trim();
   const judgement = await provider.judgeTranslation({
     zhText: sentence.zhText,
-    userTranslation: userTranslation.trim(),
+    userTranslation: trimmed,
     referenceTranslation: sentence.enReference,
   });
-  return {
+  const result: JudgeTranslationResult = {
     ...judgement,
     referenceTranslation: sentence.enReference,
   };
+
+  try {
+    await saveTranslationAttempt({
+      sentenceId,
+      zhText: sentence.zhText,
+      userTranslation: trimmed,
+      referenceTranslation: sentence.enReference,
+      score: judgement.score,
+      passed: judgement.passed,
+      feedback: judgement.feedback,
+    });
+  } catch (error) {
+    // 记录保存失败不应阻断判定结果返回，只记日志
+    console.error("[practice] 保存练习记录失败：", error);
+  }
+
+  return result;
 }
 
 function isUniqueConstraintError(error: unknown): boolean {

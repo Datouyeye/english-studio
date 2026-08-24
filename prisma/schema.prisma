@@ -70,9 +70,27 @@ model PracticeSentence {
   enReference String
   scene       PracticeScene
   sourceType  SourceType    @default(ai)
+  skipped     Boolean       @default(false)
   createdAt   DateTime      @default(now())
 
   @@unique([zhText])
   @@index([scene])
   @@index([createdAt])
+}
+
+model TranslationAttempt {
+  id                    String   @id @default(cuid())
+  sentenceId            String
+  zhText                String
+  userTranslation       String
+  referenceTranslation  String
+  score                 Int      @default(0)
+  passed                Boolean  @default(false)
+  feedback              String   @default("")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([sentenceId])
+  @@index([createdAt])
+  @@index([updatedAt])
 }

@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export default async function PracticePage() {
   // 补题失败时静默降级：页面照常打开，只影响"今日新增"提示
-  const { sentences, todayCount } = await preparePracticePage(20);
+  const { sentences, todayCount, processedCount, totalCount } = await preparePracticePage(20);
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-8">
@@ -18,6 +18,8 @@ export default async function PracticePage() {
       <PracticeClient
         sentences={sentences.map((s) => ({ id: s.id, zhText: s.zhText, scene: s.scene }))}
         todayCount={todayCount}
+        processedCount={processedCount}
+        totalCount={totalCount}
       />
     </div>
   );

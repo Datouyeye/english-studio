@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { LibraryFilters } from "@/components/library/library-filters";
 import { LibraryItemRow } from "@/components/library/library-item-row";
 import {
@@ -21,9 +22,14 @@ export default async function LibraryPage({
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">
-      <section>
-        <h1 className="text-2xl font-semibold tracking-tight">学习库</h1>
-        <p className="mt-1 text-sm text-text-muted">查看、搜索并管理你收藏的全部英语表达。</p>
+      <section className="flex items-baseline justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">学习库</h1>
+          <p className="mt-1 text-sm text-text-muted">查看、搜索并管理你收藏的全部英语表达。</p>
+        </div>
+        <Link href="/library/translations" className="text-sm text-primary hover:underline">
+          翻译历史 →
+        </Link>
       </section>
 
       <Suspense fallback={<div className="h-12" />}>

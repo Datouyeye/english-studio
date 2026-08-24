@@ -8,7 +8,10 @@ import {
   getSentenceWithReference,
   judgeTranslation,
   listPracticeSentences,
+  listTranslationAttempts,
+  listUnansweredSentences,
   preparePracticePage,
+  skipSentence,
 } from "@/services/practice-service";
 import { cleanDatabase } from "../helpers/cleanup";
 
@@ -164,5 +167,75 @@ describe("preparePracticePage（页面降级入口）", () => {
     expect(data.sentences.length).toBe(2); // 已有题目照常返回
     expect(data.todayCount).toBe(2); // 补题失败，今日条数保持不变（无新增）
     expect(data.totalCount).toBe(2);
+  });
+});
+
+describe("翻译历史与未答题排除（TranslationAttempt）", () => {
+  it("判定后自动保存记录：题目 + 我的答案 + 标准答案", async () => {
+    await ensureDailySentences();
+    const list = await listPracticeSentences(1);
+    const detail = await getSentenceWithReference(list[0].id);
+
+    await judgeTranslation(detail.id, detail.enReference);
+
+    const attempts = await prisma.translationAttempt.findMany();
+    expect(attempts.length).toBe(1);
+    expect(attempts[0].sentenceId).toBe(detail.id);
+    expect(attempts[0].zhText).toBe(detail.zhText);
+    expect(attempts[0].userTranslation).toBe(detail.enReference);
+    expect(attempts[0].referenceTranslation).toBe(detail.enReference);
+    expect(attempts[0].passed).toBe(true);
+  });
+
+  it("重试同题会覆盖记录（保留最后一版答案）", async () => {
+    await ensureDailySentences();
+    const list = await listPracticeSentences(1);
+    const detail = await getSentenceWithReference(list[0].id);
+
+    await judgeTranslation(detail.id, "first bad version ??");
+    await judgeTranslation(detail.id, detail.enReference);
+
+    const attempts = await prisma.translationAttempt.findMany();
+    expect(attempts.length).toBe(1); // 不产生新记录
+    expect(attempts[0].userTranslation).toBe(detail.enReference); // 最后一版覆盖
+  });
+
+  it("答过的题从练习列表排除（答过的不再出现）", async () => {
+    await ensureDailySentences();
+    const list = await listPracticeSentences(10);
+    const first = await getSentenceWithReference(list[0].id);
+
+    // 答第 1 题后，未答列表里不应再包含它
+    await judgeTranslation(first.id, first.enReference);
+
+    const unanswered = await listUnansweredSentences(20);
+    expect(unanswered.some((s) => s.id === first.id)).toBe(false);
+    expect(unanswered.length).toBe(list.length - 1);
+  });
+
+  it("翻译历史列表按更新时间倒序返回", async () => {
+    await ensureDailySentences();
+    const list = await listPracticeSentences(2);
+    const a = await getSentenceWithReference(list[0].id);
+    const b = await getSentenceWithReference(list[1].id);
+
+    await judgeTranslation(a.id, a.enReference);
+    await judgeTranslation(b.id, b.enReference);
+
+    const history = await listTranslationAttempts();
+    expect(history.length).toBe(2);
+    expect(history[0].sentenceId).toBe(b.id); // 后答的在前
+  });
+
+  it("跳过一题后不再出现在练习列表（相当于删除）", async () => {
+    await ensureDailySentences();
+    const list = await listPracticeSentences(10);
+    const target = list[0];
+
+    await skipSentence(target.id);
+
+    const unanswered = await listUnansweredSentences(20);
+    expect(unanswered.some((s) => s.id === target.id)).toBe(false);
+    expect(unanswered.length).toBe(list.length - 1);
   });
 });

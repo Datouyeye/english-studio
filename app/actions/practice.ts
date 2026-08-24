@@ -8,6 +8,7 @@ import {
   addUserSentences,
   countTodaySentences,
   judgeTranslation,
+  skipSentence,
 } from "@/services/practice-service";
 import { normalizeText } from "@/lib/text";
 import { prisma } from "@/lib/db";
@@ -79,6 +80,16 @@ export async function addMoreSentencesAction(): Promise<AddMoreSentencesState> {
       error:
         error instanceof AppError ? error.message : "生成题目失败，请稍后重试。",
     };
+  }
+}
+
+/** 跳过一题：标记后不再出现在练习列表（相当于删除）。 */
+export async function skipSentenceAction(sentenceId: string): Promise<{ success?: boolean; error?: string }> {
+  try {
+    await skipSentence(sentenceId);
+    return { success: true };
+  } catch (error) {
+    return { error: error instanceof AppError ? error.message : "跳过失败，请稍后重试。" };
   }
 }
 

@@ -8,6 +8,7 @@ import {
   judgePracticeTranslationAction,
   lookupWordAction,
   savePracticeExpressionAction,
+  skipSentenceAction,
 } from "@/app/actions/practice";
 
 type SentenceBrief = { id: string; zhText: string; scene: "work" | "life" };
@@ -24,9 +25,15 @@ const SCENE_LABEL: Record<"work" | "life", string> = { work: "工作", life: "�
 export function PracticeClient({
   sentences,
   todayCount: initialTodayCount,
+  processedCount,
+  totalCount,
 }: {
   sentences: SentenceBrief[];
   todayCount: number;
+  /** 已处理题数（答过+跳过），第 X 题 = processedCount + 1。 */
+  processedCount: number;
+  /** 题库总题数。 */
+  totalCount: number;
 }) {
   const router = useRouter();
   const [index, setIndex] = useState(0);
@@ -83,7 +90,9 @@ export function PracticeClient({
           addingMore={addingMore}
           onAddMore={handleAddMore}
         />
-        <p className="text-sm text-text-muted">题库还没有内容，稍后再来试试。</p>
+        <p className="text-sm text-text-muted">
+          没有待练习的题目了——点上方「增加题目」补充新题，或明天再来（每天自动新增 10 条）。
+        </p>
       </div>
     );
   }
@@ -113,7 +122,30 @@ export function PracticeClient({
 
   const handleNext = () => {
     resetForNext();
-    setIndex((i) => (i + 1) % sentences.length);
+    router.refresh(); // 重新拉取列表：刚答过的题会从队列移除
+    setIndex(0); // 回到队列头 = 下一道未答题
+  };
+
+  /** 自由浏览：切换题目时清空输入与查词结果。 */
+  const goTo = (next: number) => {
+    setUserText("");
+    setLookupResult(null);
+    setError(null);
+    setIndex(next);
+  };
+
+  const handleSkip = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const res = await skipSentenceAction(current.id);
+    setBusy(false);
+    if (res.error) {
+      setError(res.error);
+      return;
+    }
+    router.refresh(); // 被跳过的题从队列移除
+    setIndex(0);
   };
 
   const handleSave = async () => {
@@ -173,7 +205,7 @@ export function PracticeClient({
       <section className="rounded-lg border border-border bg-paper p-6 shadow-card">
         <div className="flex items-center justify-between">
           <span className="text-xs text-text-muted">
-            第 {index + 1} / {sentences.length} 题
+            第 {processedCount + 1} / {totalCount} 题
           </span>
           <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs text-primary">
             {SCENE_LABEL[current.scene]}
@@ -237,6 +269,36 @@ export function PracticeClient({
             </button>
           ) : null}
         </div>
+
+        {/* 自由导航：上一题 / 跳过此题 / 下一题（判定后隐藏，低调样式） */}
+        {!judgement ? (
+          <div className="mt-4 flex items-center justify-center gap-6 border-t border-border/60 pt-3">
+            <button
+              type="button"
+              onClick={() => goTo(Math.max(0, index - 1))}
+              disabled={index === 0}
+              className="text-xs text-text-muted transition-colors duration-150 hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              ‹ 上一题
+            </button>
+            <button
+              type="button"
+              onClick={handleSkip}
+              disabled={busy}
+              className="text-xs text-text-muted transition-colors duration-150 hover:text-text disabled:opacity-40"
+            >
+              跳过此题
+            </button>
+            <button
+              type="button"
+              onClick={() => goTo(Math.min(sentences.length - 1, index + 1))}
+              disabled={index >= sentences.length - 1}
+              className="text-xs text-text-muted transition-colors duration-150 hover:text-text disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              下一题 ›
+            </button>
+          </div>
+        ) : null}
       </section>
 
       {/* ===== 判定结果 ===== */}
@@ -346,6 +408,9 @@ export function PracticeClient({
             <button type="button" onClick={handleNext} className="btn">
               下一题
             </button>
+            <span className="ml-auto text-xs text-text-muted">
+              已保存到「学习库 → 翻译历史」
+            </span>
           </div>
         </section>
       ) : null}
