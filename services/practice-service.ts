@@ -20,27 +20,16 @@ export type PracticeSentenceListItem = {
 };
 
 /**
- * 保证当天题库数量：当天 00:00 之后生成的题目不足 DAILY_SENTENCE_COUNT 条时，
- * 调用 AI 补足到该数量（首次运行会生成 10 条），返回本次新增条数。
+ * 核心生成逻辑：调用 AI 生成 count 条题目，去重后入库（sourceType=ai），
+ * 返回实际新增条数。zhText 唯一约束冲突的条目自动跳过。
  */
-export async function ensureDailySentences(): Promise<number> {
-  const since = startOfToday();
-  const todayCount = await prisma.practiceSentence.count({
-    where: { createdAt: { gte: since } },
-  });
-  if (todayCount >= DAILY_SENTENCE_COUNT) return 0;
-
-  const need = DAILY_SENTENCE_COUNT - todayCount;
-  const existingRows = await prisma.practiceSentence.findMany({
-    select: { zhText: true },
-  });
+async function generateAndInsertSentences(count: number): Promise<number> {
+  if (count <= 0) return 0;
+  const existingRows = await prisma.practiceSentence.findMany({ select: { zhText: true } });
   const existingTexts = existingRows.map((r) => r.zhText);
 
   const provider = getAIProvider();
-  const items = await provider.generatePracticeSentences({
-    count: need,
-    existingTexts,
-  });
+  const items = await provider.generatePracticeSentences({ count, existingTexts });
 
   let inserted = 0;
   for (const item of items) {
@@ -63,6 +52,65 @@ export async function ensureDailySentences(): Promise<number> {
     }
   }
   return inserted;
+}
+
+/**
+ * 保证当天题库数量：当天 00:00 之后生成的题目不足 DAILY_SENTENCE_COUNT 条时，
+ * 调用 AI 补足到该数量（首次运行会生成 10 条），返回本次新增条数。
+ */
+export async function ensureDailySentences(): Promise<number> {
+  const todayCount = await countTodaySentences();
+  if (todayCount >= DAILY_SENTENCE_COUNT) return 0;
+  return generateAndInsertSentences(DAILY_SENTENCE_COUNT - todayCount);
+}
+
+/**
+ * 手动追加题目：不受"每日 10 条"上限约束，直接再生成 count 条入库。
+ * 用于练习页"增加题目"按钮，返回本次实际新增条数。
+ */
+export async function addMoreSentences(count = DAILY_SENTENCE_COUNT): Promise<number> {
+  return generateAndInsertSentences(count);
+}
+
+/** 今天（本地时区 00:00 起）已入库的题目条数。 */
+export async function countTodaySentences(): Promise<number> {
+  return prisma.practiceSentence.count({
+    where: { createdAt: { gte: startOfToday() } },
+  });
+}
+
+export interface PracticePageData {
+  sentences: PracticeSentenceListItem[];
+  /** 今日新增条数（用于状态提示模块）。 */
+  todayCount: number;
+  /** 题库总条数。 */
+  totalCount: number;
+}
+
+/**
+ * 练习页数据入口（P1-1 降级设计）：
+ * 先取已有题目立即返回，再尝试 AI 补题；补题失败/超时/未配 Key 时静默降级，
+ * 只影响"今日新增条数"，绝不让 AI 故障挡住整个页面。
+ */
+export async function preparePracticePage(limit = 20): Promise<PracticePageData> {
+  const [sentences, todayCount, totalCount] = await Promise.all([
+    listPracticeSentences(limit),
+    countTodaySentences(),
+    prisma.practiceSentence.count(),
+  ]);
+
+  try {
+    await ensureDailySentences();
+  } catch (error) {
+    // 静默降级：仅记录，不影响页面展示已有题目
+    console.error("[practice] 补题失败，已降级为展示已有题目：", error);
+  }
+
+  return {
+    sentences: await listPracticeSentences(limit),
+    todayCount: await countTodaySentences(),
+    totalCount,
+  };
 }
 
 /** 列出练习题目（不含参考答案）。默认返回最新题目在前，供练习页取用。 */

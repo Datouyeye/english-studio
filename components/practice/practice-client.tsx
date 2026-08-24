@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
+  addMoreSentencesAction,
   addUserSentencesAction,
   judgePracticeTranslationAction,
+  lookupWordAction,
   savePracticeExpressionAction,
 } from "@/app/actions/practice";
 
@@ -18,7 +21,14 @@ type Judgement = {
 
 const SCENE_LABEL: Record<"work" | "life", string> = { work: "工作", life: "生活" };
 
-export function PracticeClient({ sentences }: { sentences: SentenceBrief[] }) {
+export function PracticeClient({
+  sentences,
+  todayCount: initialTodayCount,
+}: {
+  sentences: SentenceBrief[];
+  todayCount: number;
+}) {
+  const router = useRouter();
   const [index, setIndex] = useState(0);
   const [userText, setUserText] = useState("");
   const [judgement, setJudgement] = useState<Judgement | null>(null);
@@ -27,15 +37,55 @@ export function PracticeClient({ sentences }: { sentences: SentenceBrief[] }) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
+  // 今日新增状态提示
+  const [todayCount, setTodayCount] = useState(initialTodayCount);
+  const [addingMore, setAddingMore] = useState(false);
+  const [moreMsg, setMoreMsg] = useState<string | null>(null);
+
   // 自定义题目窗口
   const [customOpen, setCustomOpen] = useState(false);
   const [customText, setCustomText] = useState("");
   const [customResult, setCustomResult] = useState<string | null>(null);
 
-  const current = sentences[index];
+  // 查词
+  const [lookupText, setLookupText] = useState("");
+  const [lookupResult, setLookupResult] = useState<{
+    word: string;
+    meaningZh: string;
+    usage: string;
+    example: string;
+  } | null>(null);
+  const [lookupBusy, setLookupBusy] = useState(false);
+
+  const current = sentences.length > 0 ? sentences[index % sentences.length] : undefined;
+
+  const handleAddMore = async () => {
+    if (addingMore) return;
+    setAddingMore(true);
+    setError(null);
+    setMoreMsg(null);
+    const res = await addMoreSentencesAction();
+    setAddingMore(false);
+    if (res.error) {
+      setError(res.error);
+      return;
+    }
+    if (res.todayCount !== undefined) setTodayCount(res.todayCount);
+    setMoreMsg(`已新增 ${res.added ?? 0} 条，今日共 ${res.todayCount ?? todayCount} 条`);
+    router.refresh(); // 重新拉取题目列表，新题立即可用
+  };
 
   if (!current) {
-    return <p className="text-sm text-text-muted">题库还没有内容，稍后再来试试。</p>;
+    return (
+      <div className="space-y-4">
+        <DailyStatusBar
+          todayCount={todayCount}
+          addingMore={addingMore}
+          onAddMore={handleAddMore}
+        />
+        <p className="text-sm text-text-muted">题库还没有内容，稍后再来试试。</p>
+      </div>
+    );
   }
 
   const resetForNext = () => {
@@ -54,11 +104,11 @@ export function PracticeClient({ sentences }: { sentences: SentenceBrief[] }) {
     setShowReference(false);
     const res = await judgePracticeTranslationAction(current.id, userText);
     setBusy(false);
-    if (res.error) {
-      setError(res.error);
+    if (res.success && res.result) {
+      setJudgement(res.result);
       return;
     }
-    setJudgement(res.result!);
+    setError(res.error ?? "判定失败，请稍后重试。");
   };
 
   const handleNext = () => {
@@ -95,8 +145,30 @@ export function PracticeClient({ sentences }: { sentences: SentenceBrief[] }) {
     setCustomText("");
   };
 
+  const handleLookup = async () => {
+    if (!lookupText.trim() || lookupBusy) return;
+    setLookupBusy(true);
+    setError(null);
+    const res = await lookupWordAction(lookupText);
+    setLookupBusy(false);
+    if (res.success && res.result) {
+      setLookupResult(res.result);
+      return;
+    }
+    setError(res.error ?? "查词失败，请稍后重试。");
+    setLookupResult(null);
+  };
+
   return (
     <div className="space-y-6">
+      {/* ===== 今日新增状态条 ===== */}
+      <DailyStatusBar
+        todayCount={todayCount}
+        addingMore={addingMore}
+        onAddMore={handleAddMore}
+      />
+      {moreMsg ? <p className="text-sm text-primary">{moreMsg}</p> : null}
+
       {/* ===== 题目卡 ===== */}
       <section className="rounded-lg border border-border bg-paper p-6 shadow-card">
         <div className="flex items-center justify-between">
@@ -118,6 +190,38 @@ export function PracticeClient({ sentences }: { sentences: SentenceBrief[] }) {
           placeholder="把你的英文翻译写在这里……"
           className="input mt-5 resize-y leading-7"
         />
+
+        {/* 查词：提笔忘词时输入中文意思或英文确认 */}
+        <div className="mt-3 flex items-center gap-2">
+          <input
+            type="text"
+            value={lookupText}
+            onChange={(e) => setLookupText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void handleLookup();
+            }}
+            placeholder="提笔忘词？输入中文意思或英文确认一下"
+            className="input"
+            autoComplete="off"
+          />
+          <button
+            type="button"
+            onClick={handleLookup}
+            disabled={lookupBusy || !lookupText.trim()}
+            className="btn shrink-0"
+          >
+            {lookupBusy ? "查询中……" : "查词"}
+          </button>
+        </div>
+        {lookupResult ? (
+          <div className="mt-3 space-y-2 rounded-md border border-border bg-highlight/40 p-4 text-sm">
+            <p className="font-medium text-text">{lookupResult.word}</p>
+            <p className="leading-relaxed text-text">{lookupResult.meaningZh}</p>
+            <p className="leading-relaxed text-text-muted">{lookupResult.usage}</p>
+            <p className="italic leading-relaxed text-text">{lookupResult.example}</p>
+          </div>
+        ) : null}
+
         <div className="mt-3 flex items-center gap-3">
           <button
             type="button"
@@ -165,7 +269,7 @@ export function PracticeClient({ sentences }: { sentences: SentenceBrief[] }) {
           {/* 总评（中文） */}
           <div className="space-y-1.5">
             <h3 className="text-xs font-medium text-text-muted">总评</h3>
-            <p className="rounded-md bg-background-tertiary p-3.5 text-sm leading-relaxed text-text">
+            <p className="rounded-md bg-highlight/40 p-3.5 text-sm leading-relaxed text-text">
               {judgement.feedback}
             </p>
           </div>
@@ -190,7 +294,7 @@ export function PracticeClient({ sentences }: { sentences: SentenceBrief[] }) {
             </div>
           ) : null}
 
-          {/* 参考答案（可盖住） */}
+          {/* 参考答案（翻转卡片） */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs text-text-muted">参考答案</span>
@@ -199,7 +303,7 @@ export function PracticeClient({ sentences }: { sentences: SentenceBrief[] }) {
               type="button"
               onClick={() => setShowReference((v) => !v)}
               aria-pressed={showReference}
-              className="relative block w-full rounded-md transition-transform duration-500"
+              className="grid w-full transition-transform duration-500"
               style={{
                 perspective: "800px",
                 transformStyle: "preserve-3d",
@@ -207,13 +311,13 @@ export function PracticeClient({ sentences }: { sentences: SentenceBrief[] }) {
               }}
             >
               <span
-                className="flex min-h-24 items-center justify-center rounded-md border border-dashed border-border bg-paper px-4 text-sm text-text-muted transition-colors duration-150 hover:border-primary/40 hover:text-text"
+                className="col-start-1 row-start-1 flex min-h-24 items-center justify-center rounded-md border border-dashed border-border bg-paper px-4 text-sm text-text-muted transition-colors duration-150 hover:border-primary/40 hover:text-text"
                 style={{ backfaceVisibility: "hidden" }}
               >
                 点击查看答案
               </span>
               <span
-                className="absolute inset-0 flex items-center justify-center rounded-md border border-border bg-background-tertiary px-4 py-3 text-sm leading-relaxed text-text"
+                className="col-start-1 row-start-1 flex items-center justify-center rounded-md border border-border bg-paper px-4 py-3 text-sm leading-relaxed text-text"
                 style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
               >
                 {judgement.referenceTranslation}
@@ -288,5 +392,28 @@ export function PracticeClient({ sentences }: { sentences: SentenceBrief[] }) {
         )}
       </section>
     </div>
+  );
+}
+
+/** 今日新增状态条：显示今日入库条数，并提供手动追加题目入口。 */
+function DailyStatusBar({
+  todayCount,
+  addingMore,
+  onAddMore,
+}: {
+  todayCount: number;
+  addingMore: boolean;
+  onAddMore: () => void;
+}) {
+  return (
+    <section className="flex items-center justify-between rounded-lg border border-border bg-paper px-4 py-3">
+      <div className="flex items-baseline gap-2">
+        <span className="text-sm text-text-muted">今日新增</span>
+        <span className="text-sm font-medium text-primary">{todayCount} 条</span>
+      </div>
+      <button type="button" onClick={onAddMore} disabled={addingMore} className="btn text-sm">
+        {addingMore ? "生成中……" : "增加题目"}
+      </button>
+    </section>
   );
 }

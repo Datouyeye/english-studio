@@ -3,10 +3,12 @@ import { z } from "zod";
 import {
   adaptedMaterialOutputSchema,
   explanationOutputSchema,
+  lookupWordOutputSchema,
   practiceSentenceBatchSchema,
   translationJudgementSchema,
   type AdaptedMaterialOutput,
   type ExplanationOutput,
+  type LookupWordOutput,
   type PracticeSentenceBatch,
   type PracticeSentenceItem,
   type TranslationJudgement,
@@ -17,6 +19,7 @@ import type {
   GenerateAdaptedMaterialInput,
   GeneratePracticeSentencesInput,
   JudgeTranslationInput,
+  LookupWordInput,
   RefineUserSentencesInput,
 } from "./types";
 import { DEFAULT_MODEL } from "./constants";
@@ -210,6 +213,26 @@ ${existing}
   - scene：只能为 "work" 或 "life"。`;
 }
 
+function buildLookupPrompt(input: LookupWordInput): string {
+  return `你是一名英语表达确认助手。用户在练习中译英时"提笔忘词"，输入一个想确认的表达——可能是中文意思，也可能是他写出来的英文单词/短语（不确定对错）。
+
+【用户输入】
+${input.text}
+
+【任务】
+1. 判断输入是中文还是英文（或中英混合）。
+2. 给出该表达**最常用、最地道**的英文说法：一个词或短语；如果输入本身是英文但拼写/用词不地道，给出更地道的说法。
+3. 给出简短中文释义（说明意思与常见使用场景）。
+4. 给出使用说明（中文）：搭配对象、常见误区（如易混淆词、单复数、介词搭配）。
+5. 给一个自然地道的英文例句。
+
+只输出一个合法的 JSON 对象，不要输出任何额外文字或代码围栏：
+- word：英文单词或短语（地道说法）；
+- meaningZh：中文释义（1-2 句话）；
+- usage：使用说明（中文，含搭配与易错点，1-2 句话）；
+- example：英文例句（含中文意思可省略）。`;
+}
+
 /**
  * OpenAI 兼容的 Chat Completions 实现（默认面向 DeepSeek，也可指向任何
  * 支持 OpenAI Chat Completions 格式的服务）。使用 response_format json_object
@@ -298,6 +321,21 @@ export class OpenAIProvider implements AIProvider {
     const second = await this.requestStructuredJson<PracticeSentenceBatch>(operation, retryPrompt);
     const parsed2 = practiceSentenceBatchSchema.safeParse(second);
     if (parsed2.success) return parsed2.data.sentences;
+    throw new AIOutputError(operation, `连续两次输出未通过校验：\n${formatZodIssues(parsed2.error)}`);
+  }
+
+  async lookupWord(input: LookupWordInput): Promise<LookupWordOutput> {
+    const operation = "lookupWord";
+    const prompt = buildLookupPrompt(input);
+    const first = await this.requestStructuredJson<LookupWordOutput>(operation, prompt);
+    const parsed = lookupWordOutputSchema.safeParse(first);
+    if (parsed.success) return parsed.data;
+
+    const issues = formatZodIssues(parsed.error);
+    const retryPrompt = `${prompt}\n\n上次输出未通过校验，问题如下：\n${issues}\n请修正后重新输出完整、合法的 JSON。`;
+    const second = await this.requestStructuredJson<LookupWordOutput>(operation, retryPrompt);
+    const parsed2 = lookupWordOutputSchema.safeParse(second);
+    if (parsed2.success) return parsed2.data;
     throw new AIOutputError(operation, `连续两次输出未通过校验：\n${formatZodIssues(parsed2.error)}`);
   }
 

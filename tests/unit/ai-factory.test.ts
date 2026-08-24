@@ -1,7 +1,14 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getAIProvider } from "@/lib/ai";
 import { AIProviderConfigError } from "@/lib/ai/errors";
 import { MockAIProvider } from "@/lib/ai/mock";
+
+// 隔离"页面里配置的 AI Key"（ai-config.json），让本文件只测环境变量逻辑
+vi.mock("@/lib/ai-config", () => ({
+  readAIConfig: () => null,
+  writeAIConfig: vi.fn(),
+  clearAIConfig: vi.fn(),
+}));
 
 const originalMock = process.env.MOCK_AI;
 const originalKey = process.env.DEEPSEEK_API_KEY;

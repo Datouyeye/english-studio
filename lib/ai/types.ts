@@ -2,6 +2,7 @@ import type {
   AdaptedMaterialOutput,
   ExplanationOutput,
   ItemType,
+  LookupWordOutput,
   PracticeSentenceItem,
   TargetLevel,
   TranslationJudgement,
@@ -38,6 +39,11 @@ export interface RefineUserSentencesInput {
   existingTexts: string[];
 }
 
+export interface LookupWordInput {
+  /** 想确认的表达：中文意思（如"逐渐"）或英文单词/短语（如"gradualy"）。 */
+  text: string;
+}
+
 /**
  * AI 提供方接口。第一版只实现 OpenAI，Mock 仅用于测试。
  * 未来更换模型/服务商时实现该接口并在工厂中替换即可。
@@ -49,4 +55,5 @@ export interface AIProvider {
   judgeTranslation(input: JudgeTranslationInput): Promise<TranslationJudgement>;
   generatePracticeSentences(input: GeneratePracticeSentencesInput): Promise<PracticeSentenceItem[]>;
   refineUserSentences(input: RefineUserSentencesInput): Promise<PracticeSentenceItem[]>;
+  lookupWord(input: LookupWordInput): Promise<LookupWordOutput>;
 }

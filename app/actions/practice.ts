@@ -1,10 +1,38 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getAIProvider } from "@/lib/ai";
 import { AppError } from "@/lib/errors";
-import { addUserSentences, judgeTranslation } from "@/services/practice-service";
+import {
+  addMoreSentences,
+  addUserSentences,
+  countTodaySentences,
+  judgeTranslation,
+} from "@/services/practice-service";
 import { normalizeText } from "@/lib/text";
 import { prisma } from "@/lib/db";
+
+export interface LookupWordState {
+  success?: boolean;
+  error?: string;
+  result?: { word: string; meaningZh: string; usage: string; example: string };
+}
+
+/** 练习页查词：输入中文意思或英文，返回 AI 确认的地道表达与用法。 */
+export async function lookupWordAction(text: string): Promise<LookupWordState> {
+  const trimmed = text.trim();
+  if (!trimmed) return { error: "请输入想确认的表达。" };
+  try {
+    const provider = getAIProvider();
+    const result = await provider.lookupWord({ text: trimmed });
+    return { success: true, result };
+  } catch (error) {
+    return {
+      error:
+        error instanceof AppError ? error.message : "查词失败，请检查 API 配置或稍后重试。",
+    };
+  }
+}
 
 export interface JudgePracticeState {
   success?: boolean;
@@ -28,6 +56,29 @@ export async function judgePracticeTranslationAction(
     return { success: true, result };
   } catch (error) {
     return { error: error instanceof AppError ? error.message : "判定失败，请稍后重试。" };
+  }
+}
+
+export interface AddMoreSentencesState {
+  success?: boolean;
+  error?: string;
+  /** 本次实际新增条数。 */
+  added?: number;
+  /** 操作后今日累计新增条数。 */
+  todayCount?: number;
+}
+
+/** 手动追加 10 条题目（不受每日自动补题上限约束），用于练习页"增加题目"按钮。 */
+export async function addMoreSentencesAction(): Promise<AddMoreSentencesState> {
+  try {
+    const added = await addMoreSentences(10);
+    const todayCount = await countTodaySentences();
+    return { success: true, added, todayCount };
+  } catch (error) {
+    return {
+      error:
+        error instanceof AppError ? error.message : "生成题目失败，请稍后重试。",
+    };
   }
 }
 

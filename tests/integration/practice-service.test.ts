@@ -1,13 +1,23 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/db";
 import {
   DAILY_SENTENCE_COUNT,
+  addMoreSentences,
+  countTodaySentences,
   ensureDailySentences,
   getSentenceWithReference,
   judgeTranslation,
   listPracticeSentences,
+  preparePracticePage,
 } from "@/services/practice-service";
 import { cleanDatabase } from "../helpers/cleanup";
+
+// 隔离"页面里配置的 AI Key"（ai-config.json），保证"无 Key 时降级"的用例可复现
+vi.mock("@/lib/ai-config", () => ({
+  readAIConfig: () => null,
+  writeAIConfig: vi.fn(),
+  clearAIConfig: vi.fn(),
+}));
 
 beforeEach(async () => {
   await cleanDatabase();
@@ -101,5 +111,58 @@ describe("judgeTranslation（完成度判定）", () => {
     await judgeTranslation(list[0].id, list[0].zhText);
     const listAfter = await listPracticeSentences(20);
     expect(listAfter[0]).not.toHaveProperty("referenceTranslation");
+  });
+});
+
+describe("countTodaySentences / addMoreSentences（今日统计与手动加题）", () => {
+  it("countTodaySentences 初始为 0，补题后等于 10", async () => {
+    expect(await countTodaySentences()).toBe(0);
+    await ensureDailySentences();
+    expect(await countTodaySentences()).toBe(DAILY_SENTENCE_COUNT);
+  });
+
+  it("addMoreSentences 不受每日上限约束，可再追加题目", async () => {
+    await ensureDailySentences();
+    expect(await countTodaySentences()).toBe(DAILY_SENTENCE_COUNT);
+
+    const added = await addMoreSentences(10);
+    expect(added).toBe(10);
+    expect(await countTodaySentences()).toBe(DAILY_SENTENCE_COUNT * 2);
+  });
+
+  it("手动加题不产生重复题目（zhText 唯一）", async () => {
+    await ensureDailySentences();
+    await addMoreSentences(10);
+    const rows = await prisma.practiceSentence.findMany({ select: { zhText: true } });
+    expect(new Set(rows.map((r) => r.zhText)).size).toBe(rows.length);
+  });
+});
+
+describe("preparePracticePage（页面降级入口）", () => {
+  it("正常时返回题目列表与今日条数", async () => {
+    await ensureDailySentences();
+    const data = await preparePracticePage(10);
+    expect(data.sentences.length).toBeGreaterThan(0);
+    expect(data.todayCount).toBe(DAILY_SENTENCE_COUNT);
+    expect(data.totalCount).toBeGreaterThanOrEqual(DAILY_SENTENCE_COUNT);
+  });
+
+  it("AI 不可用（无 Key/请求失败）时静默降级，不抛错且照常返回已有题目", async () => {
+    // 先造一批已有题目（绕过 AI 补题）
+    await prisma.practiceSentence.createMany({
+      data: [
+        { zhText: "已有题目一：我认为持续学习比天赋更重要。", enReference: "I believe continuous learning matters more than talent.", scene: "life" },
+        { zhText: "已有题目二：汇报工作时要先说结论，再说过程。", enReference: "When reporting, state the conclusion first, then the process.", scene: "work" },
+      ],
+    });
+
+    // 让 AI 失败：既不 mock，也无 API key → getAIProvider 抛配置错误
+    delete process.env.MOCK_AI;
+    delete process.env.DEEPSEEK_API_KEY;
+
+    const data = await preparePracticePage(10);
+    expect(data.sentences.length).toBe(2); // 已有题目照常返回
+    expect(data.todayCount).toBe(2); // 补题失败，今日条数保持不变（无新增）
+    expect(data.totalCount).toBe(2);
   });
 });

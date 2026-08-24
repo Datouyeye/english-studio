@@ -49,6 +49,15 @@ export const translationJudgementSchema = z.object({
 });
 export type TranslationJudgement = z.infer<typeof translationJudgementSchema>;
 
+/** 练习页查词结果：帮用户确认"提笔忘词"的表达（支持中文意思或英文输入）。 */
+export const lookupWordOutputSchema = z.object({
+  word: z.string().trim().min(1, "word 不能为空").max(100),
+  meaningZh: z.string().trim().min(1, "meaningZh 不能为空").max(300),
+  usage: z.string().trim().min(1, "usage 不能为空").max(500),
+  example: z.string().trim().min(1, "example 不能为空").max(300),
+});
+export type LookupWordOutput = z.infer<typeof lookupWordOutputSchema>;
+
 export const practiceSentenceItemSchema = z.object({
   zhText: z.string().trim().min(1, "zhText 不能为空").max(200, "zhText 超过长度限制"),
   enReference: z.string().trim().min(1, "enReference 不能为空").max(500, "enReference 超过长度限制"),

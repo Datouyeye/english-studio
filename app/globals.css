@@ -1,18 +1,18 @@
 @import "tailwindcss";
 
 @theme {
-  /* Flexoki 暖纸张色板 */
-  --color-background: #fffcf0;
+  /* 黑白灰色板（低调中性） */
+  --color-background: #fafafa;
   --color-paper: #ffffff;
-  --color-border: #cecdc3;
-  --color-text: #282726;
-  --color-text-muted: #6f6e69;
-  --color-primary: #bc5215;
-  --color-primary-hover: #9d4310;
-  --color-primary-soft: #ffe7ce;
-  --color-highlight: #faeec6;
-  --color-mark: #ffeb99;
-  --color-danger: #af3029;
+  --color-border: #e4e4e7;
+  --color-text: #18181b;
+  --color-text-muted: #71717a;
+  --color-primary: #18181b;
+  --color-primary-hover: #3f3f46;
+  --color-primary-soft: #f4f4f5;
+  --color-highlight: #f4f4f5;
+  --color-mark: #e5e5e7;
+  --color-danger: #b91c1c;
 
   /* 字体：正文衬线（长阅读），UI 无衬线 */
   --font-sans:

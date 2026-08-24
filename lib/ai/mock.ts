@@ -1,6 +1,7 @@
 import type {
   AdaptedMaterialOutput,
   ExplanationOutput,
+  LookupWordOutput,
   PracticeSentenceItem,
   TranslationJudgement,
 } from "./schemas";
@@ -10,6 +11,7 @@ import type {
   GenerateAdaptedMaterialInput,
   GeneratePracticeSentencesInput,
   JudgeTranslationInput,
+  LookupWordInput,
   RefineUserSentencesInput,
 } from "./types";
 
@@ -131,5 +133,14 @@ export class MockAIProvider implements AIProvider {
       enReference: `I believe ${zhText} matters a lot in daily life. (Mock translation)`,
       scene: zhText.includes("工作") || zhText.includes("会议") || zhText.includes("客户") ? "work" : "life",
     }));
+  }
+
+  async lookupWord(input: LookupWordInput): Promise<LookupWordOutput> {
+    return {
+      word: input.text.trim() || "(query)",
+      meaningZh: `“${input.text}”的含义（Mock 生成）`,
+      usage: "这是 Mock 数据。真实环境会由 AI 返回地道用法、搭配与易错点。",
+      example: `Example: "${input.text}" is used in a sentence. (Mock)`,
+    };
   }
 }

@@ -13,6 +13,7 @@ const navItems = [
   { href: "/practice", label: "翻译练习" },
   { href: "/library", label: "学习库" },
   { href: "/review", label: "卡片复习" },
+  { href: "/settings", label: "API 设置" },
 ];
 
 export default function RootLayout({ children }: { children: ReactNode }) {

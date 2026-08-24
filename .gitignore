@@ -53,4 +53,7 @@ generated/
 # 集成测试临时数据库（运行测试时自动重建）
 tests/test.db
 
+# 页面里配置的 AI Key（含敏感信息，绝不入库）
+ai-config.json
+
 /app/generated/prisma

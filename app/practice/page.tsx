@@ -1,15 +1,14 @@
-import { ensureDailySentences, listPracticeSentences } from "@/services/practice-service";
+import { preparePracticePage } from "@/services/practice-service";
 import { PracticeClient } from "@/components/practice/practice-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function PracticePage() {
-  // 惰性补题：每天第一次打开练习页时自动用 AI 补足 10 条新题
-  await ensureDailySentences();
-  const sentences = await listPracticeSentences(20);
+  // 补题失败时静默降级：页面照常打开，只影响"今日新增"提示
+  const { sentences, todayCount } = await preparePracticePage(20);
 
   return (
-    <div className="mx-auto max-w-xl space-y-8">
+    <div className="mx-auto w-full max-w-2xl space-y-8">
       <header className="text-center">
         <h1 className="text-2xl font-semibold tracking-tight">翻译练习</h1>
         <p className="mt-2 text-sm text-text-muted">
@@ -18,6 +17,7 @@ export default async function PracticePage() {
       </header>
       <PracticeClient
         sentences={sentences.map((s) => ({ id: s.id, zhText: s.zhText, scene: s.scene }))}
+        todayCount={todayCount}
       />
     </div>
   );
