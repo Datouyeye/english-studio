@@ -58,6 +58,10 @@ textarea.input{resize:vertical;line-height:1.7}
 .text-primary{color:var(--primary)}
 .text-xs{font-size:12px}.text-sm{font-size:13.5px}
 .mt-2{margin-top:8px}.mt-3{margin-top:12px}.mt-4{margin-top:16px}.mt-5{margin-top:20px}
+.guide{margin-top:16px;border-top:1px solid var(--border);padding-top:4px}
+.guide-step{margin-top:14px}
+.guide-step b{display:block;font-size:13.5px;font-weight:600;margin-bottom:4px}
+.guide-step p{font-size:13.5px;color:var(--text-muted);line-height:1.9}
 .mb-2{margin-bottom:8px}
 .flex{display:flex;align-items:center}
 .between{justify-content:space-between}
@@ -177,15 +181,34 @@ textarea.input{resize:vertical;line-height:1.7}
   <section id="view-home" class="view active">
     <div class="page-title">
       <h1>英语工作语言</h1>
-      <p>看中文 → 翻英文 → 对照参考答案，直到完成度高为止</p>
+      
     </div>
     <div class="card">
       <p class="text-sm text-muted" style="line-height:1.9">
-        这是一个完全运行在你浏览器里的英语学习工具：题库、翻译历史、学习库都存在本浏览器的本地存储中，AI 出题与判定直接调用你配置的 API（支持任意 OpenAI 兼容服务）。
+        这是一个完全运行在你浏览器里的英语学习工具：题库、翻译历史、学习库都存在本浏览器的本地存储中，AI 出题与判定直接调用你配置的 API（支持任意 OpenAI 兼容服务）。所有数据只保存在本浏览器，不会上传。
       </p>
-      <p class="text-sm text-muted mt-3" style="line-height:1.9">
-        开始之前：先去 <button class="text-primary" style="font-size:13.5px;text-decoration:underline" data-view="settings">API 设置</button> 填一个 API Key，然后到「翻译练习」开始刷题。
-      </p>
+      <div class="guide">
+        <div class="guide-step">
+          <b>① 配置 API（第一步，必做）</b>
+          <p>先去 <button class="text-primary" style="font-size:13.5px;text-decoration:underline" data-view="settings">API 设置</button> 填一个 API Key（支持任意 OpenAI 兼容服务，默认 DeepSeek）。Key 只保存在本浏览器，不会上传到任何服务器；若把这个网页分享给别人，对方也能使用此 Key，请自行承担费用风险。</p>
+        </div>
+        <div class="guide-step">
+          <b>② 翻译练习：刷题 + 判分</b>
+          <p>看中文 → 在输入框写英文 → 点「提交判定」。AI 会给总评、更地道的改法和参考答案；完成度不够就按建议再改一版，直到满意。答得好的表达可以点「收藏该表达」，会存进学习库。题库每天自动新增 10 条，也可以点「增加题目」自己补充。</p>
+        </div>
+        <div class="guide-step">
+          <b>③ 文章阅读：AI 分级改写</b>
+          <p>粘贴或上传一段中文/英文材料（支持 txt 文件），选目标水平（A2/B1/B2），AI 会翻译并改写成适合你水平的英文。阅读时选中文本，可一键加入学习库。</p>
+        </div>
+        <div class="guide-step">
+          <b>④ 学习库：收藏的表达 + 翻译历史</b>
+          <p>「收藏表达」里存你在练习和阅读中收藏的内容；「翻译历史」里存你提交过的翻译（最后版本答案）。都可以搜索、查看。</p>
+        </div>
+        <div class="guide-step">
+          <b>⑤ 卡片复习：巩固记忆</b>
+          <p>把学习库里收藏的表达做成卡片，正面英文、翻面看释义，按「从新到旧」或「随机」顺序复习。</p>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -193,7 +216,7 @@ textarea.input{resize:vertical;line-height:1.7}
   <section id="view-practice" class="view">
     <div class="page-title">
       <h1>翻译练习</h1>
-      <p>看中文 → 翻英文 → 对照参考答案，直到完成度高为止</p>
+      
     </div>
     <div id="statusBar" class="status-bar">
       <span class="count">今日新增 <b id="todayCount">0</b> 条</span>
@@ -258,7 +281,7 @@ textarea.input{resize:vertical;line-height:1.7}
   <section id="view-read" class="view">
     <div class="page-title">
       <h1>文章阅读</h1>
-      <p>粘贴或上传一段材料（中文或英文都行）→ AI 按你的水平改写 → 阅读并收藏有用的表达</p>
+      
     </div>
     <div id="readCreate" class="card">
       <div class="sec-title">材料（中文/英文均可，AI 会翻译并改写成英文）</div>
@@ -285,7 +308,7 @@ textarea.input{resize:vertical;line-height:1.7}
   <section id="view-library" class="view">
     <div class="page-title">
       <h1>学习库</h1>
-      <p>收藏的表达 与 翻译历史（最后版本答案）。</p>
+      
     </div>
     <div class="flex gap-3 center mb-2" style="justify-content:center">
       <button id="libTabFav" class="btn btn-primary" style="padding:6px 16px;font-size:13px">收藏表达</button>
@@ -299,7 +322,7 @@ textarea.input{resize:vertical;line-height:1.7}
   <section id="view-review" class="view">
     <div class="page-title">
       <h1>卡片复习</h1>
-      <p>复习你收藏过的表达（中文 → 英文）。</p>
+      
     </div>
     <div id="reviewBox"></div>
   </section>
@@ -308,7 +331,7 @@ textarea.input{resize:vertical;line-height:1.7}
   <section id="view-settings" class="view">
     <div class="page-title">
       <h1>API 设置</h1>
-      <p>配置 AI 接口，支持任意 OpenAI 兼容服务</p>
+      
     </div>
     <div class="settings-card">
       <div class="field">
