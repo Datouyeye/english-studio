@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>English Studio · 英语学习</title>
+<style>
+/* ===== 黑白灰低调色板（与本地版一致）===== */
+:root{
+  --background:#fafafa; --paper:#ffffff; --border:#e4e4e7;
+  --text:#18181b; --text-muted:#71717a; --primary:#18181b;
+  --primary-hover:#3f3f46; --primary-soft:#f4f4f5; --highlight:#f4f4f5;
+  --mark:#e5e5e7; --danger:#b91c1c;
+  --radius-sm:.25rem; --radius-md:.5rem; --radius-lg:.75rem;
+  --shadow-card:0 1px 2px rgb(40 39 38/.04); --shadow-card-hover:0 2px 8px rgb(40 39 38/.07);
+  --font-sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+  --font-serif:Georgia,"Times New Roman","Songti SC","Noto Serif SC",serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--background);color:var(--text);font-family:var(--font-sans);min-height:100vh}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:none}
+a{color:inherit;text-decoration:none}
+.hidden{display:none!important}
+
+/* ===== 顶部导航 ===== */
+.app-header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.nav{max-width:820px;margin:0 auto;display:flex;align-items:center;gap:4px;padding:10px 16px;flex-wrap:wrap}
+.brand{font-weight:700;font-size:16px;margin-right:auto;letter-spacing:.3px}
+.nav-item{font-size:13.5px;color:var(--text-muted);padding:6px 12px;border-radius:var(--radius-md);transition:all .15s}
+.nav-item:hover{color:var(--text);background:var(--primary-soft)}
+.nav-item.active{color:var(--primary);background:var(--primary-soft);font-weight:600}
+
+main{max-width:640px;margin:0 auto;padding:28px 16px 60px}
+.view{display:none}
+.view.active{display:block;animation:fadeIn .18s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+
+.page-title{text-align:center;margin-bottom:20px}
+.page-title h1{font-size:24px;font-weight:600;letter-spacing:.2px}
+.page-title p{font-size:13.5px;color:var(--text-muted);margin-top:6px}
+
+/* ===== 卡片与按钮 ===== */
+.card{background:var(--paper);border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow-card)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:var(--radius-md);padding:8px 16px;font-size:14px;font-weight:500;transition:all .15s;border:1px solid transparent}
+.btn:disabled{cursor:not-allowed;opacity:.5}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover:not(:disabled){background:var(--primary-hover)}
+.btn-outline{border-color:var(--border);background:var(--paper);color:var(--text)}
+.btn-outline:hover:not(:disabled){border-color:var(--primary);color:var(--primary)}
+.input{width:100%;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--paper);padding:8px 12px;font-size:14px}
+.input:focus{outline:2px solid color-mix(in srgb,var(--primary) 65%,transparent);outline-offset:1px}
+textarea.input{resize:vertical;line-height:1.7}
+.text-muted{color:var(--text-muted)}
+.text-danger{color:var(--danger)}
+.text-primary{color:var(--primary)}
+.text-xs{font-size:12px}.text-sm{font-size:13.5px}
+.mt-2{margin-top:8px}.mt-3{margin-top:12px}.mt-4{margin-top:16px}.mt-5{margin-top:20px}
+.mb-2{margin-bottom:8px}
+.flex{display:flex;align-items:center}
+.between{justify-content:space-between}
+.gap-2{gap:8px}.gap-3{gap:12px}
+.center{justify-content:center}
+
+/* ===== 练习页 ===== */
+.status-bar{display:flex;align-items:center;justify-content:space-between;background:var(--paper);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:16px}
+.status-bar .count{font-size:14px;color:var(--text-muted)}
+.status-bar .count b{color:var(--primary);font-weight:600}
+.q-card{background:var(--paper);border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow-card)}
+.q-meta{display:flex;justify-content:space-between;align-items:center}
+.q-progress{font-size:12px;color:var(--text-muted)}
+.scene-tag{font-size:12px;color:var(--primary);background:color-mix(in srgb,var(--primary) 10%,transparent);border-radius:999px;padding:2px 10px}
+.q-text{font-family:var(--font-serif);font-size:20px;line-height:1.7;margin-top:16px}
+.lookup-row{display:flex;gap:8px;margin-top:12px}
+.lookup-result{margin-top:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--highlight);padding:14px;font-size:13.5px;line-height:1.7}
+.lookup-result .word{font-weight:600}
+.lookup-result .muted{color:var(--text-muted)}
+.lookup-result .italic{font-style:italic}
+.nav-row{display:flex;justify-content:center;gap:24px;border-top:1px solid var(--border);margin-top:16px;padding-top:12px}
+.nav-row button{font-size:12px;color:var(--text-muted);transition:color .15s}
+.nav-row button:hover:not(:disabled){color:var(--text)}
+.nav-row button:disabled{opacity:.4;cursor:not-allowed}
+
+/* 判定结果 */
+.j-card{background:var(--paper);border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow-card);margin-top:16px;display:none}
+.j-card.show{display:block}
+.score-row{display:flex;align-items:baseline;justify-content:space-between}
+.score-label{font-size:14px;font-weight:500}
+.score-label.pass{color:var(--primary)}
+.score-label.fail{color:var(--danger)}
+.score-num{font-size:12px;color:var(--text-muted)}
+.score-bar{display:flex;gap:6px;margin-top:8px}
+.score-bar i{height:6px;flex:1;border-radius:999px;background:var(--mark)}
+.score-bar i.on{background:var(--primary)}
+.sec-title{font-size:12px;font-weight:500;color:var(--text-muted);margin-bottom:6px}
+.feedback-box{border-radius:var(--radius-md);background:var(--highlight);padding:14px;font-size:14px;line-height:1.7}
+.suggestions li{list-style:none;border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;font-size:14px;line-height:1.7;display:flex;gap:10px;margin-top:8px}
+.suggestions .num{color:var(--primary);font-size:12px;font-weight:600;margin-top:2px;flex-shrink:0}
+.reference-btn{position:relative;width:100%;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--paper);padding:20px 16px;font-size:14px;line-height:1.7;min-height:96px;display:grid;place-items:center;transition:transform .5s;transform-style:preserve-3d}
+.reference-btn .face{grid-area:1/1;backface-visibility:hidden}
+.reference-btn .back{grid-area:1/1;backface-visibility:hidden;transform:rotateY(180deg);width:100%}
+.reference-btn.flipped{transform:rotateY(180deg)}
+.j-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px;border-top:1px solid var(--border);padding-top:16px;margin-top:16px}
+.j-actions .saved-hint{margin-left:auto;font-size:12px;color:var(--text-muted)}
+
+/* 学习库 / 历史 */
+.list-card{background:var(--paper);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 20px;margin-bottom:12px;box-shadow:var(--shadow-card)}
+.list-card .zh{font-family:var(--font-serif);font-size:15px;line-height:1.7}
+.list-card .row{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.list-card .badge{font-size:12px;flex-shrink:0}
+.list-card .badge.pass{color:var(--primary)}.list-card .badge.fail{color:var(--danger)}
+.list-card .mine{font-size:13.5px;color:var(--text)}
+.list-card .ref{font-size:13.5px;color:var(--text-muted)}
+.list-card .time{font-size:12px;color:var(--text-muted);margin-top:10px}
+.list-card .fb{border-radius:var(--radius-md);background:var(--highlight);padding:10px 12px;font-size:13.5px;line-height:1.7;margin-top:10px}
+.item-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+
+/* 复习卡 */
+.review-card{text-align:center}
+.review-card .front{font-family:var(--font-serif);font-size:22px;line-height:1.7;min-height:120px;display:grid;place-items:center}
+.review-card .back{font-size:16px;line-height:1.8;color:var(--text);margin-top:8px}
+
+/* 设置 */
+.settings-card{background:var(--paper);border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow-card)}
+.settings-card label{display:block;font-size:13px;color:var(--text-muted);margin-bottom:4px}
+.settings-card .field{margin-bottom:12px}
+.msg{font-size:13.5px;margin-top:12px}
+.msg.ok{color:var(--primary)}.msg.err{color:var(--danger)}
+
+/* 空态 */
+.empty{background:var(--paper);border:1px dashed var(--border);border-radius:var(--radius-lg);padding:28px;text-align:center;color:var(--text-muted);font-size:13.5px;line-height:1.8}
+
+@media (max-width:480px){
+  .brand{width:100%;margin-bottom:4px}
+  main{padding:20px 12px 50px}
+}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <nav class="nav">
+    <span class="brand">English Studio</span>
+    <button class="nav-item active" data-view="home">首页</button>
+    <button class="nav-item" data-view="practice">翻译练习</button>
+    <button class="nav-item" data-view="library">学习库</button>
+    <button class="nav-item" data-view="review">卡片复习</button>
+    <button class="nav-item" data-view="settings">API 设置</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ===== 首页 ===== -->
+  <section id="view-home" class="view active">
+    <div class="page-title">
+      <h1>英语工作语言</h1>
+      <p>看中文 → 翻英文 → 对照参考答案，直到完成度高为止</p>
+    </div>
+    <div class="card">
+      <p class="text-sm text-muted" style="line-height:1.9">
+        这是一个完全运行在你浏览器里的英语学习工具：题库、翻译历史、学习库都存在本浏览器的本地存储中，AI 出题与判定直接调用你配置的 API（支持任意 OpenAI 兼容服务）。
+      </p>
+      <p class="text-sm text-muted mt-3" style="line-height:1.9">
+        开始之前：先去 <button class="text-primary" style="font-size:13.5px;text-decoration:underline" data-view="settings">API 设置</button> 填一个 API Key，然后到「翻译练习」开始刷题。
+      </p>
+    </div>
+  </section>
+
+  <!-- ===== 翻译练习 ===== -->
+  <section id="view-practice" class="view">
+    <div class="page-title">
+      <h1>翻译练习</h1>
+      <p>看中文 → 翻英文 → 对照参考答案，直到完成度高为止</p>
+    </div>
+    <div id="statusBar" class="status-bar">
+      <span class="count">今日新增 <b id="todayCount">0</b> 条</span>
+      <button id="btnAddMore" class="btn btn-outline" style="padding:6px 14px;font-size:13px">增加题目</button>
+    </div>
+    <div id="msgBox"></div>
+    <div id="qCard" class="q-card">
+      <div class="q-meta">
+        <span id="qProgress" class="q-progress"></span>
+        <span id="qScene" class="scene-tag"></span>
+      </div>
+      <p id="qText" class="q-text"></p>
+      <textarea id="userText" class="input mt-4" rows="4" placeholder="把你的英文翻译写在这里……"></textarea>
+      <div class="lookup-row">
+        <input id="lookupInput" class="input" placeholder="提笔忘词？输入中文意思或英文确认一下" />
+        <button id="btnLookup" class="btn btn-outline" style="flex-shrink:0">查词</button>
+      </div>
+      <div id="lookupResult" class="lookup-result hidden"></div>
+      <div class="mt-3 flex gap-3">
+        <button id="btnSubmit" class="btn btn-primary">提交判定</button>
+      </div>
+      <div class="nav-row">
+        <button id="btnPrev">‹ 上一题</button>
+        <button id="btnSkip">跳过此题</button>
+        <button id="btnNext">下一题 ›</button>
+      </div>
+    </div>
+    <div id="emptyBox" class="empty hidden">没有待练习的题目了——点上方「增加题目」补充新题，或明天再来（每天自动新增 10 条）。</div>
+
+    <!-- 判定结果 -->
+    <div id="jCard" class="j-card">
+      <div class="score-row">
+        <span id="jStatus" class="score-label"></span>
+        <span id="jScore" class="score-num"></span>
+      </div>
+      <div id="jBar" class="score-bar"></div>
+      <div class="mt-4">
+        <div class="sec-title">总评</div>
+        <div id="jFeedback" class="feedback-box"></div>
+      </div>
+      <div class="mt-4" id="jSugWrap" style="display:none">
+        <div class="sec-title">更地道的改法</div>
+        <ol id="jSug" class="suggestions"></ol>
+      </div>
+      <div class="mt-4">
+        <div class="sec-title">参考答案</div>
+        <button id="refBtn" class="reference-btn">
+          <span class="face">点击查看答案</span>
+          <span id="jRef" class="back"></span>
+        </button>
+      </div>
+      <div class="j-actions">
+        <button id="btnRetry" class="btn btn-primary">按建议再改一版</button>
+        <button id="btnSave" class="btn btn-outline">收藏该表达</button>
+        <button id="btnNext2" class="btn btn-outline">下一题</button>
+        <span class="saved-hint">已保存到「学习库 → 翻译历史」</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 学习库 ===== -->
+  <section id="view-library" class="view">
+    <div class="page-title">
+      <h1>学习库</h1>
+      <p>收藏的表达 与 翻译历史（最后版本答案）。</p>
+    </div>
+    <div class="flex gap-3 center mb-2" style="justify-content:center">
+      <button id="libTabFav" class="btn btn-primary" style="padding:6px 16px;font-size:13px">收藏表达</button>
+      <button id="libTabHist" class="btn btn-outline" style="padding:6px 16px;font-size:13px">翻译历史</button>
+    </div>
+    <div id="favList"></div>
+    <div id="histList"></div>
+  </section>
+
+  <!-- ===== 卡片复习 ===== -->
+  <section id="view-review" class="view">
+    <div class="page-title">
+      <h1>卡片复习</h1>
+      <p>复习你收藏过的表达（中文 → 英文）。</p>
+    </div>
+    <div id="reviewBox"></div>
+  </section>
+
+  <!-- ===== API 设置 ===== -->
+  <section id="view-settings" class="view">
+    <div class="page-title">
+      <h1>API 设置</h1>
+      <p>配置 AI 接口，支持任意 OpenAI 兼容服务</p>
+    </div>
+    <div class="settings-card">
+      <div class="field">
+        <label>API Key <span class="text-danger">*</span></label>
+        <input id="setKey" type="password" class="input" placeholder="sk-……" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label>Base URL（可选，默认 https://api.deepseek.com）</label>
+        <input id="setBase" type="text" class="input" placeholder="https://api.deepseek.com" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label>Model（可选，默认 deepseek-chat）</label>
+        <input id="setModel" type="text" class="input" placeholder="deepseek-chat" autocomplete="off" />
+      </div>
+      <div class="flex gap-3">
+        <button id="btnSaveKey" class="btn btn-primary">保存并生效</button>
+        <button id="btnClearKey" class="btn btn-outline">清除</button>
+      </div>
+      <div id="setMsg" class="msg"></div>
+      <p class="text-xs text-muted mt-4" style="line-height:1.8">
+        说明：Key 只保存在本浏览器（localStorage），不会上传到任何服务器。若把这个网页分享给别人，对方也能使用此 Key，请自行承担费用风险。
+      </p>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+/* ========== 存储 ========== */
+const LS = {
+  get(k, d){ try{ const v = JSON.parse(localStorage.getItem(k)); return v===null||v===undefined?d:v; }catch(e){ return d; } },
+  set(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
+};
+const BASE = LS.get("es_baseURL","https://api.deepseek.com");
+const MODEL = LS.get("es_model","deepseek-chat");
+const KEY = LS.get("es_apiKey","");
+
+/* ========== 内置题库（初始） ========== */
+const BUILTIN = [
+  {zh:"我认为持续学习比天赋更重要。", en:"I believe continuous learning matters more than talent.", scene:"life"},
+  {zh:"汇报工作时要先说结论，再说过程。", en:"When reporting, state the conclusion first, then the process.", scene:"work"},
+  {zh:"我最近在学怎么在会议上清晰地表达自己的观点。", en:"I've been learning how to express my views clearly in meetings.", scene:"work"},
+  {zh:"这个方案还需要和团队再讨论一下。", en:"We still need to discuss this plan with the team.", scene:"work"},
+  {zh:"每天花二十分钟练习，进步会很明显。", en:"Practicing twenty minutes a day makes a big difference.", scene:"life"},
+  {zh:"我们在截止日期前完成了项目。", en:"We delivered the project before the deadline.", scene:"work"},
+  {zh:"她说话总是很有条理，让人容易理解。", en:"She always speaks in a well-organized way that's easy to follow.", scene:"life"},
+  {zh:"这个价格对我们来说有点超出预算。", en:"This price is a bit over our budget.", scene:"work"},
+  {zh:"周末我喜欢去爬山放松一下。", en:"I like to go hiking on weekends to unwind.", scene:"life"},
+  {zh:"遇到问题时，先冷静下来再想办法。", en:"When a problem comes up, stay calm first and then figure it out.", scene:"life"},
+];
+
+/* ========== 状态 ========== */
+let sentences = [];      // 全部题目（含跳过/已答标记）
+let attempts = [];       // 翻译历史
+let favorites = [];      // 收藏
+let idx = 0;             // 当前题目在队列中的位置
+let curQuestion = null;  // 当前题目
+let judging = false;     // 是否已判定
+
+function boot(){
+  sentences = LS.get("es_sentences", null);
+  if(!sentences || !sentences.length){
+    const yesterday = Date.now() - 86400000;
+    sentences = BUILTIN.map((s,i)=>({ id:"b"+(i+1), zh:s.zh, en:s.en, scene:s.scene, skipped:false, created:yesterday }));
+    LS.set("es_sentences", sentences);
+  }
+  attempts = LS.get("es_attempts", []);
+  favorites = LS.get("es_favorites", []);
+  renderSettings();
+}
+
+/* ========== 导航 ========== */
+document.querySelectorAll(".nav-item").forEach(b=>{
+  b.addEventListener("click", ()=>{ switchView(b.dataset.view); });
+});
+document.querySelectorAll("[data-view]").forEach(b=>{
+  if(b.classList.contains("nav-item")) return;
+  b.addEventListener("click", ()=>{ switchView(b.dataset.view); });
+});
+function switchView(name){
+  document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+  document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
+  document.getElementById("view-"+name).classList.add("active");
+  document.querySelector('.nav-item[data-view="'+name+'"]').classList.add("active");
+  if(name==="practice") renderPractice();
+  if(name==="library") renderLibrary();
+  if(name==="review") renderReview();
+}
+
+/* ========== 工具：日期 ========== */
+function todayStart(){ const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); }
+function todayCount(){ return sentences.filter(s=>(s.created||0)>=todayStart()).length; }
+
+/* ========== AI 调用（OpenAI 兼容） ========== */
+async function chat(messages){
+  const key = LS.get("es_apiKey","");
+  if(!key) throw new Error("未配置 API Key，请先到「API 设置」填写。");
+  const base = (LS.get("es_baseURL","https://api.deepseek.com")||"").replace(/\/+$/,"");
+  const model = LS.get("es_model","deepseek-chat")||"deepseek-chat";
+  const res = await fetch(base + "/chat/completions", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", "Authorization":"Bearer "+key },
+    body: JSON.stringify({ model, messages, response_format:{ type:"json_object" }, temperature:0.7 })
+  });
+  if(!res.ok){
+    let detail="";
+    try{ const j=await res.json(); detail = j.error?.message || ""; }catch(e){}
+    throw new Error("AI 请求失败（"+res.status+"）" + (detail?"："+detail:""));
+  }
+  const j = await res.json();
+  const content = j.choices?.[0]?.message?.content || "";
+  return JSON.parse(content);
+}
+async function tryChat(messages){
+  const r = await chat(messages);
+  return r; // 简化：不再二次校验
+}
+
+/* ========== 练习页 ========== */
+function unanswered(){
+  const answered = new Set(attempts.map(a=>a.sentenceId));
+  return sentences.filter(s=>!s.skipped && !answered.has(s.id));
+}
+function renderPractice(){
+  const qs = unanswered();
+  const total = sentences.length;
+  const processed = attempts.length + sentences.filter(s=>s.skipped).length;
+  document.getElementById("todayCount").textContent = todayCount();
+  if(qs.length===0){
+    document.getElementById("qCard").classList.add("hidden");
+    document.getElementById("jCard").classList.remove("show");
+    document.getElementById("emptyBox").classList.remove("hidden");
+    return;
+  }
+  document.getElementById("emptyBox").classList.add("hidden");
+  document.getElementById("qCard").classList.remove("hidden");
+  if(idx>=qs.length) idx = qs.length-1;
+  curQuestion = qs[idx];
+  document.getElementById("qProgress").textContent = "第 "+(processed+1)+" / "+total+" 题";
+  document.getElementById("qScene").textContent = curQuestion.scene==="work"?"工作":"生活";
+  document.getElementById("qText").textContent = curQuestion.zh;
+  document.getElementById("userText").value = "";
+  document.getElementById("lookupInput").value = "";
+  document.getElementById("lookupResult").classList.add("hidden");
+  document.getElementById("jCard").classList.remove("show");
+  judging = false;
+  document.getElementById("btnPrev").disabled = idx===0;
+  document.getElementById("btnNext").disabled = idx>=qs.length-1;
+}
+function msg(text, ok){
+  const box = document.getElementById("msgBox");
+  box.innerHTML = '<p class="text-sm '+(ok?"text-primary":"text-danger")+'">'+text+'</p>';
+}
+
+document.getElementById("btnPrev").addEventListener("click", ()=>{ idx=Math.max(0,idx-1); renderPractice(); });
+document.getElementById("btnNext").addEventListener("click", ()=>{ idx=Math.min(unanswered().length-1,idx+1); renderPractice(); });
+
+document.getElementById("btnSkip").addEventListener("click", ()=>{
+  if(!curQuestion) return;
+  const s = sentences.find(x=>x.id===curQuestion.id);
+  if(s) s.skipped = true;
+  LS.set("es_sentences", sentences);
+  idx = 0;
+  renderPractice();
+});
+
+document.getElementById("btnSubmit").addEventListener("click", submitTranslation);
+async function submitTranslation(){
+  const text = document.getElementById("userText").value.trim();
+  if(!text || !curQuestion) return;
+  const btn = document.getElementById("btnSubmit");
+  btn.disabled = true; btn.textContent = "判定中……";
+  try{
+    const j = await tryChat([
+      { role:"system", content:"你是英语水平判定老师。评估用户的中译英完成度，输出严格 JSON：score(整数0-5), passed(布尔，score>=4为true), feedback(中文总评1-2句), suggestions(英文更地道改法数组，最多3条)。" },
+      { role:"user", content:"中文原文："+curQuestion.zh+"\n参考译文（仅供评分参考，不是唯一答案）："+curQuestion.en+"\n用户的翻译："+text }
+    ]);
+    const score = Math.max(0, Math.min(5, Math.round(Number(j.score)||0)));
+    const passed = !!j.passed;
+    showJudgement({ score, passed, feedback: j.feedback||"", suggestions: Array.isArray(j.suggestions)?j.suggestions.slice(0,3):[], ref: curQuestion.en, zh: curQuestion.zh, user: text });
+    // 保存历史（覆盖最后一版）
+    attempts = attempts.filter(a=>a.sentenceId!==curQuestion.id);
+    attempts.unshift({ id:"a"+Date.now(), sentenceId: curQuestion.id, zh: curQuestion.zh, user, ref: curQuestion.en, score, passed, feedback: j.feedback||"", time: Date.now() });
+    LS.set("es_attempts", attempts.slice(0,200));
+  }catch(e){
+    msg(esc(e.message||"判定失败"), false);
+  }
+  btn.disabled = false; btn.textContent = "提交判定";
+}
+function showJudgement(j){
+  const card = document.getElementById("jCard");
+  card.classList.add("show");
+  const st = document.getElementById("jStatus");
+  st.textContent = j.passed ? "完成度高，已通过" : "还没达到完成度，可以再改一版";
+  st.className = "score-label " + (j.passed?"pass":"fail");
+  document.getElementById("jScore").textContent = "评分 "+j.score+" / 5";
+  let bar = "";
+  for(let i=1;i<=5;i++) bar += '<i class="'+(i<=j.score?"on":"")+'"></i>';
+  document.getElementById("jBar").innerHTML = bar;
+  document.getElementById("jFeedback").textContent = j.feedback;
+  const sw = document.getElementById("jSugWrap");
+  if(j.suggestions && j.suggestions.length){
+    sw.style.display = "";
+    document.getElementById("jSug").innerHTML = j.suggestions.map((s,i)=>'<li><span class="num">'+(i+1)+'.</span><span>'+esc(s)+'</span></li>').join("");
+  } else sw.style.display = "none";
+  document.getElementById("jRef").textContent = j.ref;
+  const rb = document.getElementById("refBtn");
+  rb.classList.remove("flipped");
+  document.getElementById("btnRetry").style.display = j.passed ? "none" : "";
+  document.getElementById("btnSave").style.display = j.passed ? "" : "none";
+  judging = true;
+}
+document.getElementById("refBtn").addEventListener("click", ()=>document.getElementById("refBtn").classList.toggle("flipped"));
+document.getElementById("btnRetry").addEventListener("click", ()=>{
+  document.getElementById("jCard").classList.remove("show");
+  document.getElementById("userText").value = "";
+});
+document.getElementById("btnSave").addEventListener("click", ()=>{
+  if(!judging) return;
+  if(!favorites.some(f=>f.ref===document.getElementById("jRef").textContent)){
+    favorites.unshift({ zh: curQuestion.zh, ref: document.getElementById("jRef").textContent, time: Date.now() });
+    LS.set("es_favorites", favorites.slice(0,200));
+  }
+  document.getElementById("btnSave").textContent = "已加入学习库 ✓";
+  document.getElementById("btnSave").disabled = true;
+});
+function goNext(){
+  idx = 0;
+  renderPractice();
+}
+document.getElementById("btnNext2").addEventListener("click", goNext);
+
+/* ===== 查词 ===== */
+document.getElementById("btnLookup").addEventListener("click", doLookup);
+document.getElementById("lookupInput").addEventListener("keydown", e=>{ if(e.key==="Enter") doLookup(); });
+async function doLookup(){
+  const text = document.getElementById("lookupInput").value.trim();
+  if(!text) return;
+  const btn = document.getElementById("btnLookup");
+  btn.disabled = true; btn.textContent = "查询中……";
+  try{
+    const r = await tryChat([
+      { role:"system", content:"你是英语表达确认助手。用户在中译英时想确认表达，输入可能是中文意思或英文（可能拼错）。输出严格 JSON：word(最地道的英文说法), meaningZh(中文释义1-2句), usage(中文使用说明含搭配/易错点1-2句), example(英文例句)。" },
+      { role:"user", content: text }
+    ]);
+    document.getElementById("lookupResult").innerHTML =
+      '<p class="word">'+esc(r.word||"")+'</p>'+
+      '<p class="mt-2">'+esc(r.meaningZh||"")+'</p>'+
+      '<p class="muted mt-2">'+esc(r.usage||"")+'</p>'+
+      '<p class="italic mt-2">'+esc(r.example||"")+'</p>';
+    document.getElementById("lookupResult").classList.remove("hidden");
+  }catch(e){
+    msg(esc(e.message||"查词失败"), false);
+  }
+  btn.disabled = false; btn.textContent = "查词";
+}
+
+/* ===== 增加题目 ===== */
+document.getElementById("btnAddMore").addEventListener("click", async ()=>{
+  const btn = document.getElementById("btnAddMore");
+  btn.disabled = true; btn.textContent = "生成中……";
+  try{
+    const existing = sentences.map(s=>s.zh);
+    const r = await tryChat([
+      { role:"system", content:"你是英语出题老师。生成10条中译英练习题，输出严格 JSON：sentences 数组，每项 {zhText, enReference, scene(只能work或life)}。句子要贴近职场和生活。" },
+      { role:"user", content:"请生成10条，避免与以下已有题目重复："+existing.slice(-30).join(" / ") }
+    ]);
+    const items = (r.sentences||[]).filter(x=>x&&x.zhText&&x.enReference);
+    let added = 0;
+    for(const it of items){
+      const zh = it.zhText.trim();
+      if(!zh || sentences.some(s=>s.zh===zh)) continue;
+      sentences.unshift({ id:"s"+Date.now()+Math.random().toString(36).slice(2,6), zh, en: it.enReference.trim(), scene: it.scene==="life"?"life":"work", skipped:false, created: Date.now() });
+      added++;
+    }
+    LS.set("es_sentences", sentences);
+    msg("已新增 "+added+" 条，今日共 "+todayCount()+" 条", true);
+    renderPractice();
+  }catch(e){
+    msg(esc(e.message||"生成失败"), false);
+  }
+  btn.disabled = false; btn.textContent = "增加题目";
+});
+
+/* ===== 学习库 ===== */
+let libTab = "fav";
+document.getElementById("libTabFav").addEventListener("click", ()=>{ libTab="fav"; renderLibrary(); });
+document.getElementById("libTabHist").addEventListener("click", ()=>{ libTab="hist"; renderLibrary(); });
+function fmt(t){ const d=new Date(t); const p=n=>String(n).padStart(2,"0"); return p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes()); }
+function renderLibrary(){
+  const favBtn = document.getElementById("libTabFav");
+  const hisBtn = document.getElementById("libTabHist");
+  favBtn.className = "btn "+(libTab==="fav"?"btn-primary":"btn-outline");
+  hisBtn.className = "btn "+(libTab==="hist"?"btn-primary":"btn-outline");
+  document.getElementById("favList").classList.toggle("hidden", libTab!=="fav");
+  document.getElementById("histList").classList.toggle("hidden", libTab!=="hist");
+  if(libTab==="fav") renderFavs();
+  else renderHist();
+}
+function renderFavs(){
+  const box = document.getElementById("favList");
+  if(!favorites.length){ box.innerHTML = '<div class="empty">还没有收藏的表达。练习通过后点「收藏该表达」。</div>'; return; }
+  box.innerHTML = favorites.map(f=>
+    '<div class="list-card"><div class="item-head"><span class="zh">'+esc(f.zh)+'</span>'+
+    '<button class="btn-outline btn" style="padding:4px 10px;font-size:12px" onclick="removeFav(this)">移除</button></div>'+
+    '<div class="ref mt-2">'+esc(f.ref)+'</div>'+
+    '<div class="time">收藏于 '+fmt(f.time)+'</div></div>'
+  ).join("");
+}
+function removeFav(el){
+  const card = el.closest(".list-card");
+  const zh = card.querySelector(".zh").textContent;
+  favorites = favorites.filter(f=>f.zh!==zh);
+  LS.set("es_favorites", favorites);
+  renderFavs();
+}
+function renderHist(){
+  const box = document.getElementById("histList");
+  if(!attempts.length){ box.innerHTML = '<div class="empty">还没有翻译记录。去练习页做几道题吧。</div>'; return; }
+  box.innerHTML = attempts.map(a=>
+    '<div class="list-card"><div class="row"><span class="zh">'+esc(a.zh)+'</span>'+
+    '<span class="badge '+(a.passed?"pass":"fail")+'">'+(a.passed?"✓ 通过 "+a.score+"/5":"✗ 未通过 "+a.score+"/5")+'</span></div>'+
+    '<div class="mine mt-2"><span class="text-muted">我的答案 </span>'+esc(a.user||"（空）")+'</div>'+
+    '<div class="ref mt-2"><span class="text-muted">参考答案 </span>'+esc(a.ref)+'</div>'+
+    (a.feedback?'<div class="fb">'+esc(a.feedback)+'</div>':'')+
+    '<div class="time">更新于 '+fmt(a.time)+'</div></div>'
+  ).join("");
+}
+
+/* ===== 卡片复习 ===== */
+let reviewIdx = 0, reviewShow = false;
+function renderReview(){
+  const box = document.getElementById("reviewBox");
+  if(!favorites.length){
+    box.innerHTML = '<div class="empty">还没有收藏的表达。先练习并收藏一些，再来复习。</div>';
+    return;
+  }
+  if(reviewIdx>=favorites.length) reviewIdx = 0;
+  const f = favorites[reviewIdx];
+  box.innerHTML =
+    '<div class="card review-card">'+
+      '<div class="front">'+esc(f.zh)+'</div>'+
+      '<button class="btn btn-outline mt-3" onclick="toggleReview()">'+(reviewShow?"隐藏答案":"查看答案")+'</button>'+
+      '<div class="back '+(reviewShow?"":"hidden")+'">'+esc(f.ref)+'</div>'+
+      '<div class="flex gap-3 center mt-4">'+
+        '<button class="btn btn-primary" onclick="reviewGo(-1)">‹ 上一张</button>'+
+        '<button class="btn btn-primary" onclick="reviewGo(1)">下一张 ›</button>'+
+      '</div>'+
+      '<p class="text-xs text-muted mt-3">'+ (reviewIdx+1) +' / '+ favorites.length +'</p>'+
+    '</div>';
+}
+function toggleReview(){ reviewShow=!reviewShow; renderReview(); }
+function reviewGo(d){ reviewIdx = Math.max(0, Math.min(favorites.length-1, reviewIdx+d)); reviewShow=false; renderReview(); }
+
+/* ===== 设置 ===== */
+function renderSettings(){
+  document.getElementById("setKey").value = LS.get("es_apiKey","");
+  document.getElementById("setBase").value = LS.get("es_baseURL","https://api.deepseek.com");
+  document.getElementById("setModel").value = LS.get("es_model","deepseek-chat");
+}
+document.getElementById("btnSaveKey").addEventListener("click", ()=>{
+  const key = document.getElementById("setKey").value.trim();
+  if(!key){ setMsg("API Key 不能为空", false); return; }
+  LS.set("es_apiKey", key);
+  LS.set("es_baseURL", document.getElementById("setBase").value.trim()||"https://api.deepseek.com");
+  LS.set("es_model", document.getElementById("setModel").value.trim()||"deepseek-chat");
+  setMsg("已保存，之后的 AI 请求立即使用新配置。", true);
+});
+document.getElementById("btnClearKey").addEventListener("click", ()=>{
+  localStorage.removeItem("es_apiKey");
+  setMsg("已清除页面配置。", true);
+  renderSettings();
+});
+function setMsg(text, ok){
+  const el = document.getElementById("setMsg");
+  el.className = "msg " + (ok?"ok":"err");
+  el.textContent = text;
+}
+
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+boot();
+renderPractice();
+</script>
+</body>
+</html>
