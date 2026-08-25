@@ -32,7 +32,8 @@ a{color:inherit;text-decoration:none}
 .nav-item:hover{color:var(--text);background:var(--primary-soft)}
 .nav-item.active{color:var(--primary);background:var(--primary-soft);font-weight:600}
 
-main{max-width:640px;margin:0 auto;padding:28px 16px 60px}
+main{max-width:640px;margin:0 auto;padding:28px 16px 60px;transition:max-width .2s}
+main.wide{max-width:880px}
 .view{display:none}
 .view.active{display:block;animation:fadeIn .18s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
@@ -121,6 +122,26 @@ textarea.input{resize:vertical;line-height:1.7}
 .review-card .front{font-family:var(--font-serif);font-size:22px;line-height:1.7;min-height:120px;display:grid;place-items:center}
 .review-card .back{font-size:16px;line-height:1.8;color:var(--text);margin-top:8px}
 
+/* 阅读：知识点卡片 */
+.read-tabs{display:flex;gap:4px;background:var(--primary-soft);padding:3px;border-radius:var(--radius-md);margin-top:14px}
+.read-tabs button{flex:1;padding:7px 0;font-size:13px;color:var(--text-muted);border-radius:calc(var(--radius-md) - 2px);transition:all .15s}
+.read-tabs button.active{background:var(--paper);color:var(--primary);font-weight:600;box-shadow:var(--shadow-card)}
+.read-card{background:var(--paper);border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow-card)}
+.read-card mark{background:var(--mark);border-radius:2px;padding:0 2px;color:inherit}
+.para-row{display:grid;gap:10px;margin-top:16px}
+@media(min-width:900px){.para-row{grid-template-columns:minmax(0,1fr) 215px;gap:20px;align-items:start}}
+.para-text{font-family:var(--font-serif);font-size:16.5px;line-height:1.9;min-width:0}
+.item-card{border:1px solid var(--border);border-radius:var(--radius-md);background:var(--highlight);padding:10px 12px;font-size:12.5px;line-height:1.6;margin-bottom:8px}
+.item-card .t{font-weight:600;font-size:13.5px;color:var(--text)}
+.item-card .m{color:var(--text-muted);margin-top:2px}
+.item-card .u{color:var(--text-muted);margin-top:5px;font-size:11.5px;line-height:1.5}
+.item-card .meta{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
+.item-card .tag{font-size:10.5px;color:var(--text-muted)}
+.item-card .del{font-size:11px;color:var(--text-muted);opacity:.65;transition:all .15s}
+.item-card .del:hover{color:var(--danger);opacity:1}
+.read-hint{margin-top:14px;font-size:12px;color:var(--text-muted);line-height:1.7}
+.orig-text{white-space:pre-wrap;line-height:1.9;font-size:14.5px;margin-top:14px}
+
 /* 设置 */
 .settings-card{background:var(--paper);border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow-card)}
 .settings-card label{display:block;font-size:13px;color:var(--text-muted);margin-bottom:4px}
@@ -151,7 +172,7 @@ textarea.input{resize:vertical;line-height:1.7}
   </nav>
 </header>
 
-<main>
+<main id="main">
   <!-- ===== 首页 ===== -->
   <section id="view-home" class="view active">
     <div class="page-title">
@@ -372,6 +393,7 @@ function switchView(name){
   document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
   document.getElementById("view-"+name).classList.add("active");
   document.querySelector('.nav-item[data-view="'+name+'"]').classList.add("active");
+  document.getElementById("main").classList.toggle("wide", name==="read");
   if(name==="practice") renderPractice();
   if(name==="read") renderRead();
   if(name==="library") renderLibrary();
@@ -691,21 +713,38 @@ document.getElementById("btnGenArticle").addEventListener("click", async ()=>{
   btn.disabled = true; btn.textContent = "生成中……";
   try{
     const r = await tryChat([
-      { role:"system", content:"你是英语分级改写老师。把用户提供的材料改写成目标水平的英文文章：如果材料是英文，直接按水平简化改写（保留原意与关键信息）；如果材料是中文，先翻译成英文，再按水平改写。输出严格 JSON：title(中文标题), content(英文全文，用\\n\\n分段)。" },
+      { role:"system", content:"你是英语分级改写老师。把用户提供的材料改写成目标水平的英文文章：如果材料是英文，直接按水平简化改写（保留原意与关键信息）；如果材料是中文，先翻译成英文，再按水平改写。输出严格 JSON：title(中文标题), content(英文全文，用\\n\\n分段), sourceLanguage(原文语言，zh/en/other), learningItems(3-8个对学习者最有价值的英文表达数组，每项 {text(英文表达，必须完整出现在content中), itemType(word/phrase/sentence), meaningZh(中文释义), usage(中文使用说明含搭配/易错点), sourceSentence(该表达在content中的原句)})。" },
       { role:"user", content:"目标水平："+readLevel+"（CEFR，A2入门/B1中级/B2中高级）\n原文：\n"+text.slice(0,4000) }
     ]);
     const title = r.title || "改编文章";
     const content = String(r.content||"").trim();
     if(!content) throw new Error("生成内容为空");
-    const a = { id:"a"+Date.now(), title, content, level: readLevel, time: Date.now(), source: text.slice(0,200) };
+    const a = { id:"a"+Date.now(), title, content, level: readLevel, time: Date.now(), original: text, items: postprocessItems(r.learningItems, content) };
     articles.unshift(a);
     LS.set("es_articles", articles.slice(0,50));
     curArticle = a;
     renderRead();
-    readMsg("已生成《"+title+"》，点击文章开始阅读。", true);
+    readMsg("已生成《"+title+"》，含 "+a.items.length+" 个知识点卡片。", true);
   }catch(e){ readMsg(esc(e.message||"生成失败"), false); }
   btn.disabled = false; btn.textContent = "生成改编文章";
 });
+function postprocessItems(items, content){
+  const seen = new Set(), out = [];
+  const cl = String(content||"").toLowerCase();
+  for(const it of (items||[])){
+    if(!it || !it.text) continue;
+    const t = String(it.text).trim();
+    if(!t || seen.has(t.toLowerCase())) continue;
+    if(!cl.includes(t.toLowerCase())) continue; // 只保留真正出现在文章里的表达
+    seen.add(t.toLowerCase());
+    out.push({ id:"i"+Date.now()+Math.random().toString(36).slice(2,6), text:t,
+      itemType:["word","phrase","sentence"].includes(it.itemType)?it.itemType:"word",
+      meaningZh:it.meaningZh||"", usage:it.usage||it.writingUsage||"",
+      sourceSentence:it.sourceSentence||"", sourceType:"ai" });
+    if(out.length>=15) break;
+  }
+  return out;
+}
 function readMsg(text, ok){
   const el = document.getElementById("readMsg");
   el.className = "msg " + (ok?"ok":"err");
@@ -718,14 +757,85 @@ function showArticle(id){
   const box = document.getElementById("articleView");
   box.classList.remove("hidden");
   box.innerHTML =
-    '<div class="card">'+
+    '<div class="read-card">'+
       '<div class="row"><span class="q-text" style="font-size:18px">'+esc(a.title)+'</span>'+
       '<span class="text-xs text-muted">'+a.level+'</span></div>'+
-      '<div id="artBody" class="mt-4" style="line-height:2.1;font-size:15.5px;font-family:var(--font-serif);white-space:pre-line">'+esc(a.content)+'</div>'+
-      '<p class="text-xs text-muted mt-4">提示：选中任意单词或短语，可查看释义并收藏。</p>'+
+      '<div class="read-tabs">'+
+        '<button id="rtAdapted" class="active">改写文章</button>'+
+        '<button id="rtOriginal">原始材料</button>'+
+      '</div>'+
+      '<div id="readBodyWrap"></div>'+
+      '<p class="read-hint">提示：选中文章中的单词、短语或句子，可解释并加入知识点卡片；AI 推荐的知识点会自动标亮。</p>'+
     '</div>';
-  // 划词解释（委托）
-  box.querySelector("#artBody").onmouseup = ()=>onArticleSelect(a);
+  renderAdapted(a);
+  document.getElementById("rtAdapted").addEventListener("click", ()=>renderAdapted(a));
+  document.getElementById("rtOriginal").addEventListener("click", ()=>renderOriginal(a));
+  box.onmouseup = ()=>onArticleSelect(a);
+}
+function renderAdapted(a){
+  const wrap = document.getElementById("readBodyWrap");
+  const tabs = [document.getElementById("rtAdapted"), document.getElementById("rtOriginal")];
+  if(tabs[0]){ tabs[0].className = "active"; tabs[1].className = ""; }
+  const paras = String(a.content||"").split(/\n+/).map(p=>p.trim()).filter(Boolean);
+  const items = a.items||[];
+  const terms = items.map(i=>i.text);
+  // 每个表达挂到它第一次出现的段落右侧
+  const placed = {}, cardsByPara = {};
+  paras.forEach((p, idx)=>{
+    const pl = p.toLowerCase();
+    for(const it of items){
+      const key = it.text.toLowerCase();
+      if(placed[key]) continue;
+      if(pl.includes(key)){ placed[key] = true; (cardsByPara[idx]=cardsByPara[idx]||[]).push(it); }
+    }
+  });
+  wrap.innerHTML = paras.length ? paras.map((p, idx)=>{
+    const cards = cardsByPara[idx]||[];
+    return '<div class="para-row">'+
+      '<p class="para-text">'+highlightHtml(p, terms)+'</p>'+
+      (cards.length ? '<aside>'+cards.map(cardHtml).join("")+'</aside>' : '')+
+    '</div>';
+  }).join("") : '<p class="text-muted">这篇文章内容为空。</p>';
+}
+function renderOriginal(a){
+  const wrap = document.getElementById("readBodyWrap");
+  const tabs = [document.getElementById("rtAdapted"), document.getElementById("rtOriginal")];
+  if(tabs[0]){ tabs[0].className = ""; tabs[1].className = "active"; }
+  wrap.innerHTML = '<div class="orig-text">'+(a.original ? esc(a.original) : '<span class="text-muted">这篇文章没有保存原文。</span>')+'</div>';
+}
+function cardHtml(it){
+  const typeLabel = {word:"单词", phrase:"短语", sentence:"句子"}[it.itemType] || "单词";
+  const srcLabel = it.sourceType==="ai" ? "AI 推荐" : "手动收藏";
+  return '<div class="item-card">'+
+    '<div class="t">'+esc(it.text)+'</div>'+
+    (it.meaningZh ? '<div class="m">'+esc(it.meaningZh)+'</div>' : '')+
+    (it.usage ? '<div class="u">'+esc(it.usage)+'</div>' : '')+
+    '<div class="meta"><span class="tag">'+typeLabel+' · '+srcLabel+'</span>'+
+    '<button class="del" onclick="delItem(this)">删除</button></div>'+
+  '</div>';
+}
+function delItem(el){
+  if(!curArticle || !window.confirm("确定删除这条知识点吗？")) return;
+  const t = el.closest(".item-card").querySelector(".t").textContent;
+  curArticle.items = (curArticle.items||[]).filter(i=>i.text!==t);
+  LS.set("es_articles", articles);
+  renderAdapted(curArticle);
+}
+function escapeRegExp(v){ return String(v).replace(/[.*+?^${}()|[\]\\]/g,"\\$&"); }
+function highlightHtml(text, terms){
+  if(!terms || !terms.length) return esc(text);
+  const pattern = terms.map(escapeRegExp).sort((x,y)=>y.length-x.length).join("|");
+  const lower = terms.map(t=>t.toLowerCase());
+  return String(text).split(new RegExp("("+pattern+")","gi")).map(p=>{
+    if(p && lower.includes(p.toLowerCase())) return '<mark>'+esc(p)+'</mark>';
+    return esc(p);
+  }).join("");
+}
+/** 从文章正文里找出包含选中文本的完整句子（用于「整句加入」）。 */
+function findSentence(content, text){
+  const sentences = String(content||"").split(/(?<=[.!?])\s+/);
+  const l = text.toLowerCase();
+  return sentences.find(s=>s.toLowerCase().includes(l)) || "";
 }
 function onArticleSelect(a){
   const sel = window.getSelection();
@@ -740,25 +850,54 @@ let selBar = null;
 function showSelectBar(rect, text, a){
   if(selBar) selBar.remove();
   selBar = document.createElement("div");
-  selBar.style.cssText = "position:fixed;z-index:99;background:var(--primary);color:#fff;border-radius:8px;padding:6px 12px;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,.18);cursor:pointer";
-  selBar.textContent = "解释并收藏";
-  selBar.addEventListener("click", async ()=>{
-    selBar.textContent = "解释中……";
+  selBar.style.cssText = "position:fixed;z-index:99;display:flex;align-items:center;gap:4px;background:var(--primary);color:#fff;border-radius:8px;padding:5px 6px;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,.18)";
+  const main = document.createElement("button");
+  main.style.cssText = "padding:3px 10px;border-radius:6px;background:transparent;color:#fff";
+  main.textContent = "解释并加入";
+  main.addEventListener("click", async ()=>{
+    main.textContent = "解释中……";
     try{
       const r = await tryChat([
-        { role:"system", content:"你是英语学习助手。解释用户选中的表达（可能是单词或短语），输出严格 JSON：meaningZh(中文释义), usage(中文使用说明，含搭配), example(英文例句), expression(这个表达的地道英文形式，若选中已是英文则原样)。" },
+        { role:"system", content:"你是英语学习助手。解释用户选中的表达（可能是单词或短语，可能拼写有误），输出严格 JSON：expression(地道英文形式，若选中已是英文则原样), meaningZh(中文释义), usage(中文使用说明含搭配/易错点), example(英文例句), itemType(word/phrase/sentence)。" },
         { role:"user", content:"选中的表达："+text+"\n所在文章：《"+a.title+"》" }
       ]);
-      favorites = favorites.filter(f=>!(f.zh===text && f.ref===r.expression));
-      favorites.unshift({ zh: text, ref: r.expression || text, time: Date.now(), note: (r.meaningZh||"") + (r.usage?(" — "+r.usage):""), example: r.example||"" });
-      LS.set("es_favorites", favorites.slice(0,200));
+      const expr = String(r.expression||text).trim() || text;
+      addItemToArticle(a, expr, ["word","phrase","sentence"].includes(r.itemType)?r.itemType:(/\s/.test(expr)?"phrase":"word"), r.meaningZh||"", r.usage||"", r.example||"");
       showExplainPopup(r, text);
     }catch(e){ selBar.textContent = "解释失败"; setTimeout(()=>selBar&&selBar.remove(),1500); }
   });
+  selBar.appendChild(main);
+  // 非句子选中时，提供「整句加入」
+  if(!/[.!?]$/.test(text) && text.split(/\s+/).length < 6){
+    const sent = findSentence(a.content, text);
+    if(sent){
+      const sBtn = document.createElement("button");
+      sBtn.style.cssText = "padding:3px 10px;border-radius:6px;background:rgba(255,255,255,.16);color:#fff;font-size:12px";
+      sBtn.textContent = "整句加入";
+      sBtn.addEventListener("click", ()=>{
+        addItemToArticle(a, sent.trim(), "sentence", "", "", "");
+        selBar.remove(); selBar = null;
+        window.getSelection().removeAllRanges();
+      });
+      selBar.appendChild(sBtn);
+    }
+  }
+  const cancel = document.createElement("button");
+  cancel.style.cssText = "padding:3px 8px;border-radius:6px;color:rgba(255,255,255,.85);font-size:12px";
+  cancel.textContent = "✕";
+  cancel.addEventListener("click", ()=>{ selBar.remove(); selBar = null; });
+  selBar.appendChild(cancel);
   document.body.appendChild(selBar);
-  const y = rect.bottom + 8;
   selBar.style.left = Math.min(rect.left, window.innerWidth - selBar.offsetWidth - 8) + "px";
-  selBar.style.top = y + "px";
+  selBar.style.top = (rect.bottom + 8) + "px";
+}
+function addItemToArticle(a, expr, itemType, meaningZh, usage, example){
+  const items = a.items = a.items||[];
+  if(!items.some(i=>i.text.toLowerCase()===expr.toLowerCase())){
+    items.push({ id:"i"+Date.now()+Math.random().toString(36).slice(2,6), text:expr, itemType, meaningZh, usage, sourceSentence:"", sourceType:"manual", example });
+    LS.set("es_articles", articles);
+  }
+  renderAdapted(a);
 }
 function showExplainPopup(r, text){
   if(selBar) selBar.remove();
@@ -771,7 +910,7 @@ function showExplainPopup(r, text){
     '<div class="text-muted">'+esc(r.meaningZh||"")+'</div>'+
     '<div class="mt-2">'+esc(r.usage||"")+'</div>'+
     '<div class="italic mt-2">'+esc(r.example||"")+'</div>'+
-    '<div class="mt-2 text-primary">✓ 已加入学习库（收藏表达）</div>'+
+    '<div class="mt-2 text-primary">✓ 已加入知识点卡片</div>'+
     '<button class="btn btn-outline mt-3" style="width:100%" onclick="this.parentElement.remove()">知道了</button>';
   document.body.appendChild(pop);
   selBar = null;
