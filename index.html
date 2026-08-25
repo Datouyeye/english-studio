@@ -330,8 +330,18 @@ mark.flash{background:var(--primary);color:#fff;border-radius:2px}
       </div>
       <div id="readMsg" class="msg"></div>
     </div>
-    <div id="articleList" class="mt-4"></div>
-    <div id="articleView" class="hidden mt-4"></div>
+    <div id="readSearchWrap" class="mt-4">
+      <input id="readSearch" class="input" placeholder="搜索文章标题（输入任意关键词）……" />
+    </div>
+    <div id="articleList" class="mt-3"></div>
+  </section>
+
+  <!-- ===== 文章详情（独立页） ===== -->
+  <section id="view-article" class="view">
+    <div class="mt-4">
+      <button id="btnBackToList" class="btn btn-outline" onclick="backToList()" style="font-size:13px">‹ 返回文章列表</button>
+    </div>
+    <div id="articleView" class="mt-4"></div>
   </section>
 
   <!-- ===== 学习库 ===== -->
@@ -447,8 +457,9 @@ function switchView(name){
   document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
   document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
   document.getElementById("view-"+name).classList.add("active");
-  document.querySelector('.nav-item[data-view="'+name+'"]').classList.add("active");
-  document.getElementById("main").classList.toggle("wide", name==="read");
+  const navName = name==="article" ? "read" : name;
+  document.querySelector('.nav-item[data-view="'+navName+'"]').classList.add("active");
+  document.getElementById("main").classList.toggle("wide", name==="read" || name==="article");
   if(name==="practice") renderPractice();
   if(name==="read") renderRead();
   if(name==="library") renderLibrary();
@@ -869,18 +880,29 @@ let curArticle = null;
 
 function renderRead(){
   renderArticleList();
-  if(curArticle) showArticle(curArticle.id);
+}
+function backToList(){
+  curArticle = null;
+  switchView("read");
 }
 function renderArticleList(){
   const box = document.getElementById("articleList");
-  if(!articles.length){ box.innerHTML = ''; return; }
-  box.innerHTML = '<div class="sec-title">我的文章</div>' + articles.map(a=>
+  const searchEl = document.getElementById("readSearch");
+  const kw = (searchEl ? searchEl.value : "").trim().toLowerCase();
+  let list = articles;
+  if(kw) list = articles.filter(a=>String(a.title||"").toLowerCase().includes(kw));
+  if(!list.length){
+    box.innerHTML = kw ? '<div class="empty">没有找到包含「'+esc(kw)+'」的文章。</div>' : '';
+    return;
+  }
+  box.innerHTML = '<div class="sec-title">我的文章'+(kw?'（'+list.length+' 篇）':'')+'</div>' + list.map(a=>
     '<div class="list-card" style="cursor:pointer" onclick="showArticle(\''+a.id+'\')">'+
       '<div class="row"><span class="zh">'+esc(a.title)+'</span>'+
       '<span class="text-xs text-muted">'+a.level+' · '+fmt(a.time)+'</span></div>'+
     '</div>'
   ).join("");
 }
+document.getElementById("readSearch").addEventListener("input", renderArticleList);
 document.querySelectorAll("#lvlA2,#lvlB1,#lvlB2").forEach(b=>{
   b.addEventListener("click", ()=>{
     readLevel = b.id.replace("lvl","");
@@ -918,7 +940,7 @@ document.getElementById("btnGenArticle").addEventListener("click", async ()=>{
     articles.unshift(a);
     LS.set("es_articles", articles.slice(0,50));
     curArticle = a;
-    renderRead();
+    showArticle(a.id);
     readMsg("已生成《"+title+"》，含 "+a.items.length+" 个知识点卡片。", true);
   }catch(e){ readMsg(esc(e.message||"生成失败"), false); }
   btn.disabled = false; btn.textContent = "生成改编文章";
@@ -949,8 +971,8 @@ function showArticle(id){
   const a = articles.find(x=>x.id===id);
   if(!a) return;
   curArticle = a;
+  switchView("article");
   const box = document.getElementById("articleView");
-  box.classList.remove("hidden");
   box.innerHTML =
     '<div class="read-card">'+
       '<div class="row"><span class="q-text" style="font-size:18px">'+esc(a.title)+'</span>'+
