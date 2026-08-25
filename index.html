@@ -128,6 +128,12 @@ textarea.input{resize:vertical;line-height:1.7}
 .review-card{text-align:center}
 .review-card .front{font-family:var(--font-serif);font-size:22px;line-height:1.7;min-height:120px;display:grid;place-items:center}
 .review-card .back{font-size:16px;line-height:1.8;color:var(--text);margin-top:8px}
+.review-card .back-extra{margin-top:8px;font-size:13px;color:var(--text-muted);line-height:1.7}
+.review-card .known-btn{color:var(--primary);border-color:var(--primary)}
+.read-fav-head{cursor:pointer}
+.read-fav-head:hover{opacity:.85}
+.read-fav-meta{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.read-fav-arrow{font-size:12px;color:var(--text-muted)}
 
 /* 阅读：知识点卡片 */
 .read-tabs{display:flex;gap:4px;background:var(--primary-soft);padding:3px;border-radius:var(--radius-md);margin-top:14px}
@@ -730,13 +736,23 @@ function renderReadFavs(){
   box.innerHTML = withItems.map(a=>{
     const items = a.items||[];
     return '<div class="list-card">'+
-      '<div class="item-head"><span class="zh">'+esc(a.title)+'</span>'+
-      '<span class="text-xs text-muted">'+items.length+' 个知识点</span></div>'+
-      '<div class="text-xs text-muted mt-1">'+a.level+' · '+fmt(a.time)+'</div>'+
-      '<div class="mt-2">'+items.map(it=>readFavItemHtml(it)).join("")+'</div>'+
-      '<div class="mt-3"><button class="btn btn-outline" style="padding:5px 12px;font-size:12.5px" onclick="openArticleFromLib(\''+esc(a.id)+'\')">打开文章 ›</button></div>'+
+      '<div class="item-head read-fav-head" onclick="toggleReadFav(this)">'+
+        '<span class="zh">'+esc(a.title)+'</span>'+
+        '<span class="read-fav-meta"><span class="text-xs text-muted">'+items.length+' 个知识点</span><span class="read-fav-arrow">▸</span></span>'+
+      '</div>'+
+      '<div class="read-fav-body hidden">'+
+        '<div class="text-xs text-muted mt-1">'+a.level+' · '+fmt(a.time)+'</div>'+
+        '<div class="mt-2">'+items.map(it=>readFavItemHtml(it)).join("")+'</div>'+
+      '</div>'+
     '</div>';
   }).join("");
+}
+function toggleReadFav(el){
+  const card = el.closest(".list-card");
+  const body = card.querySelector(".read-fav-body");
+  const arrow = el.querySelector(".read-fav-arrow");
+  const isHidden = body.classList.toggle("hidden");
+  if(arrow) arrow.textContent = isHidden ? "▸" : "▾";
 }
 function readFavItemHtml(it){
   const typeLabel = {word:"单词", phrase:"短语", sentence:"句子"}[it.itemType] || "单词";
@@ -756,11 +772,7 @@ function delReadFavItem(id){
   LS.set("es_articles", articles);
   renderReadFavs();
 }
-function openArticleFromLib(id){
-  switchView("read");
-  const a = articles.find(x=>x.id===id);
-  if(a) showArticle(id);
-}
+
 function renderFavs(){
   const box = document.getElementById("favList");
   if(!favorites.length){ box.innerHTML = '<div class="empty">还没有收藏的表达。练习通过后点「收藏该表达」。</div>'; return; }
@@ -796,28 +808,59 @@ function renderHist(){
 
 /* ===== 卡片复习 ===== */
 let reviewIdx = 0, reviewShow = false;
+function reviewList(){
+  const fromFav = favorites.map(f=>({ src:"fav", key:f.ref, zh:f.zh, ref:f.ref, usage:f.usage, example:f.example }));
+  const fromArt = articles.flatMap(a=>(a.items||[]).map(it=>({ src:"art", articleId:a.id, key:it.id, zh:it.meaningZh || it.text, ref:it.text, usage:it.usage, example:it.example })));
+  return fromFav.concat(fromArt);
+}
 function renderReview(){
   const box = document.getElementById("reviewBox");
-  if(!favorites.length){
-    box.innerHTML = '<div class="empty">还没有收藏的表达。先练习并收藏一些，再来复习。</div>';
+  const list = reviewList();
+  if(!list.length){
+    box.innerHTML = '<div class="empty">还没有可复习的内容。去练习收藏表达，或在阅读时收藏词句。</div>';
     return;
   }
-  if(reviewIdx>=favorites.length) reviewIdx = 0;
-  const f = favorites[reviewIdx];
+  if(reviewIdx>=list.length) reviewIdx = 0;
+  const f = list[reviewIdx];
   box.innerHTML =
     '<div class="card review-card">'+
       '<div class="front">'+esc(f.zh)+'</div>'+
       '<button class="btn btn-outline mt-3" onclick="toggleReview()">'+(reviewShow?"隐藏答案":"查看答案")+'</button>'+
       '<div class="back '+(reviewShow?"":"hidden")+'">'+esc(f.ref)+'</div>'+
-      '<div class="flex gap-3 center mt-4">'+
+      (f.usage?'<div class="back-extra '+(reviewShow?"":"hidden")+'">'+esc(f.usage)+'</div>':'')+
+      (f.example?'<div class="back-extra '+(reviewShow?"":"hidden")+'">'+esc(f.example)+'</div>':'')+
+      '<div class="flex gap-3 center mt-4" style="flex-wrap:wrap">'+
         '<button class="btn btn-primary" onclick="reviewGo(-1)">‹ 上一张</button>'+
         '<button class="btn btn-primary" onclick="reviewGo(1)">下一张 ›</button>'+
       '</div>'+
-      '<p class="text-xs text-muted mt-3">'+ (reviewIdx+1) +' / '+ favorites.length +'</p>'+
+      '<button class="btn btn-outline mt-3 known-btn" onclick="markKnown()">✓ 已熟记，从学习库移除</button>'+
+      '<p class="text-xs text-muted mt-3">'+ (reviewIdx+1) +' / '+ list.length +'</p>'+
     '</div>';
 }
 function toggleReview(){ reviewShow=!reviewShow; renderReview(); }
-function reviewGo(d){ reviewIdx = Math.max(0, Math.min(favorites.length-1, reviewIdx+d)); reviewShow=false; renderReview(); }
+function reviewGo(d){
+  const len = reviewList().length;
+  reviewIdx = Math.max(0, Math.min(len-1, reviewIdx+d));
+  reviewShow=false;
+  renderReview();
+}
+function markKnown(){
+  const list = reviewList();
+  const f = list[reviewIdx];
+  if(!f) return;
+  if(f.src==="fav"){
+    favorites = favorites.filter(x=>x.ref!==f.key);
+    LS.set("es_favorites", favorites);
+  }else{
+    const a = articles.find(x=>x.id===f.articleId);
+    if(a) a.items = (a.items||[]).filter(i=>i.id!==f.key);
+    LS.set("es_articles", articles);
+  }
+  const len = reviewList().length;
+  if(reviewIdx>=len) reviewIdx = Math.max(0, len-1);
+  reviewShow = false;
+  renderReview();
+}
 
 /* ===== 阅读 ===== */
 let articles = LS.get("es_articles", []);
