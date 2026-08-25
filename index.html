@@ -144,6 +144,7 @@ textarea.input{resize:vertical;line-height:1.7}
     <span class="brand">English Studio</span>
     <button class="nav-item active" data-view="home">首页</button>
     <button class="nav-item" data-view="practice">翻译练习</button>
+    <button class="nav-item" data-view="read">阅读</button>
     <button class="nav-item" data-view="library">学习库</button>
     <button class="nav-item" data-view="review">卡片复习</button>
     <button class="nav-item" data-view="settings">API 设置</button>
@@ -230,6 +231,28 @@ textarea.input{resize:vertical;line-height:1.7}
         <span class="saved-hint">已保存到「学习库 → 翻译历史」</span>
       </div>
     </div>
+  </section>
+
+  <!-- ===== 阅读 ===== -->
+  <section id="view-read" class="view">
+    <div class="page-title">
+      <h1>文章阅读</h1>
+      <p>粘贴材料 → AI 按你的水平改写 → 阅读并收藏有用的表达</p>
+    </div>
+    <div id="readCreate" class="card">
+      <div class="sec-title">原文（工作/生活中的一段英文）</div>
+      <textarea id="readSource" class="input" rows="5" placeholder="把你想读的英文材料粘贴在这里……"></textarea>
+      <div class="flex gap-2 mt-3" style="align-items:center">
+        <span class="text-xs text-muted">目标水平</span>
+        <button id="lvlA2" class="btn btn-outline" style="padding:5px 14px;font-size:13px">A2</button>
+        <button id="lvlB1" class="btn btn-primary" style="padding:5px 14px;font-size:13px">B1</button>
+        <button id="lvlB2" class="btn btn-outline" style="padding:5px 14px;font-size:13px">B2</button>
+        <button id="btnGenArticle" class="btn btn-primary" style="margin-left:auto">生成改编文章</button>
+      </div>
+      <div id="readMsg" class="msg"></div>
+    </div>
+    <div id="articleList" class="mt-4"></div>
+    <div id="articleView" class="hidden mt-4"></div>
   </section>
 
   <!-- ===== 学习库 ===== -->
@@ -345,6 +368,7 @@ function switchView(name){
   document.getElementById("view-"+name).classList.add("active");
   document.querySelector('.nav-item[data-view="'+name+'"]').classList.add("active");
   if(name==="practice") renderPractice();
+  if(name==="read") renderRead();
   if(name==="library") renderLibrary();
   if(name==="review") renderReview();
 }
@@ -566,6 +590,8 @@ function renderFavs(){
     '<div class="list-card"><div class="item-head"><span class="zh">'+esc(f.zh)+'</span>'+
     '<button class="btn-outline btn" style="padding:4px 10px;font-size:12px" onclick="removeFav(this)">移除</button></div>'+
     '<div class="ref mt-2">'+esc(f.ref)+'</div>'+
+    (f.note?'<div class="text-xs text-muted mt-2">'+esc(f.note)+'</div>':'')+
+    (f.example?'<div class="italic text-sm mt-2">'+esc(f.example)+'</div>':'')+
     '<div class="time">收藏于 '+fmt(f.time)+'</div></div>'
   ).join("");
 }
@@ -613,6 +639,130 @@ function renderReview(){
 }
 function toggleReview(){ reviewShow=!reviewShow; renderReview(); }
 function reviewGo(d){ reviewIdx = Math.max(0, Math.min(favorites.length-1, reviewIdx+d)); reviewShow=false; renderReview(); }
+
+/* ===== 阅读 ===== */
+let articles = LS.get("es_articles", []);
+let readLevel = "B1";
+let curArticle = null;
+
+function renderRead(){
+  renderArticleList();
+  if(curArticle) showArticle(curArticle.id);
+}
+function renderArticleList(){
+  const box = document.getElementById("articleList");
+  if(!articles.length){ box.innerHTML = ''; return; }
+  box.innerHTML = '<div class="sec-title">我的文章</div>' + articles.map(a=>
+    '<div class="list-card" style="cursor:pointer" onclick="showArticle(\''+a.id+'\')">'+
+      '<div class="row"><span class="zh">'+esc(a.title)+'</span>'+
+      '<span class="text-xs text-muted">'+a.level+' · '+fmt(a.time)+'</span></div>'+
+    '</div>'
+  ).join("");
+}
+document.querySelectorAll("#lvlA2,#lvlB1,#lvlB2").forEach(b=>{
+  b.addEventListener("click", ()=>{
+    readLevel = b.id.replace("lvl","");
+    ["lvlA2","lvlB1","lvlB2"].forEach(id=>{
+      const el=document.getElementById(id);
+      el.className = "btn " + (id===b.id?"btn-primary":"btn-outline");
+    });
+  });
+});
+document.getElementById("btnGenArticle").addEventListener("click", async ()=>{
+  const text = document.getElementById("readSource").value.trim();
+  if(!text){ readMsg("请先粘贴原文。", false); return; }
+  const btn = document.getElementById("btnGenArticle");
+  btn.disabled = true; btn.textContent = "生成中……";
+  try{
+    const r = await tryChat([
+      { role:"system", content:"你是英语分级改写老师。把用户的英文材料改写成目标水平的文章，保留原意和关键信息，用词和句式适配目标水平。输出严格 JSON：title(中文标题), content(改编后的英文全文，用\\n\\n分段)。" },
+      { role:"user", content:"目标水平："+readLevel+"（CEFR，A2入门/B1中级/B2中高级）\n原文：\n"+text.slice(0,4000) }
+    ]);
+    const title = r.title || "改编文章";
+    const content = String(r.content||"").trim();
+    if(!content) throw new Error("生成内容为空");
+    const a = { id:"a"+Date.now(), title, content, level: readLevel, time: Date.now(), source: text.slice(0,200) };
+    articles.unshift(a);
+    LS.set("es_articles", articles.slice(0,50));
+    curArticle = a;
+    renderRead();
+    readMsg("已生成《"+title+"》，点击文章开始阅读。", true);
+  }catch(e){ readMsg(esc(e.message||"生成失败"), false); }
+  btn.disabled = false; btn.textContent = "生成改编文章";
+});
+function readMsg(text, ok){
+  const el = document.getElementById("readMsg");
+  el.className = "msg " + (ok?"ok":"err");
+  el.textContent = text;
+}
+function showArticle(id){
+  const a = articles.find(x=>x.id===id);
+  if(!a) return;
+  curArticle = a;
+  const box = document.getElementById("articleView");
+  box.classList.remove("hidden");
+  box.innerHTML =
+    '<div class="card">'+
+      '<div class="row"><span class="q-text" style="font-size:18px">'+esc(a.title)+'</span>'+
+      '<span class="text-xs text-muted">'+a.level+'</span></div>'+
+      '<div id="artBody" class="mt-4" style="line-height:2.1;font-size:15.5px;font-family:var(--font-serif);white-space:pre-line">'+esc(a.content)+'</div>'+
+      '<p class="text-xs text-muted mt-4">提示：选中任意单词或短语，可查看释义并收藏。</p>'+
+    '</div>';
+  // 划词解释（委托）
+  box.querySelector("#artBody").onmouseup = ()=>onArticleSelect(a);
+}
+function onArticleSelect(a){
+  const sel = window.getSelection();
+  if(!sel || sel.isCollapsed) return;
+  const text = sel.toString().trim();
+  if(text.length<1 || text.length>120) return;
+  const range = sel.getRangeAt(0);
+  const rect = range.getBoundingClientRect();
+  showSelectBar(rect, text, a);
+}
+let selBar = null;
+function showSelectBar(rect, text, a){
+  if(selBar) selBar.remove();
+  selBar = document.createElement("div");
+  selBar.style.cssText = "position:fixed;z-index:99;background:var(--primary);color:#fff;border-radius:8px;padding:6px 12px;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,.18);cursor:pointer";
+  selBar.textContent = "解释并收藏";
+  selBar.addEventListener("click", async ()=>{
+    selBar.textContent = "解释中……";
+    try{
+      const r = await tryChat([
+        { role:"system", content:"你是英语学习助手。解释用户选中的表达（可能是单词或短语），输出严格 JSON：meaningZh(中文释义), usage(中文使用说明，含搭配), example(英文例句), expression(这个表达的地道英文形式，若选中已是英文则原样)。" },
+        { role:"user", content:"选中的表达："+text+"\n所在文章：《"+a.title+"》" }
+      ]);
+      favorites = favorites.filter(f=>!(f.zh===text && f.ref===r.expression));
+      favorites.unshift({ zh: text, ref: r.expression || text, time: Date.now(), note: (r.meaningZh||"") + (r.usage?(" — "+r.usage):""), example: r.example||"" });
+      LS.set("es_favorites", favorites.slice(0,200));
+      showExplainPopup(r, text);
+    }catch(e){ selBar.textContent = "解释失败"; setTimeout(()=>selBar&&selBar.remove(),1500); }
+  });
+  document.body.appendChild(selBar);
+  const y = rect.bottom + 8;
+  selBar.style.left = Math.min(rect.left, window.innerWidth - selBar.offsetWidth - 8) + "px";
+  selBar.style.top = y + "px";
+}
+function showExplainPopup(r, text){
+  if(selBar) selBar.remove();
+  const pop = document.createElement("div");
+  pop.style.cssText = "position:fixed;z-index:99;background:var(--paper);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,.15);max-width:340px;font-size:13.5px;line-height:1.8;left:50%;top:50%;transform:translate(-50%,-50%)";
+  pop.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
+      '<b>'+esc(r.expression||text)+'</b>'+
+      '<button style="color:var(--text-muted);font-size:13px" onclick="this.parentElement.parentElement.remove()">✕</button></div>'+
+    '<div class="text-muted">'+esc(r.meaningZh||"")+'</div>'+
+    '<div class="mt-2">'+esc(r.usage||"")+'</div>'+
+    '<div class="italic mt-2">'+esc(r.example||"")+'</div>'+
+    '<div class="mt-2 text-primary">✓ 已加入学习库（收藏表达）</div>'+
+    '<button class="btn btn-outline mt-3" style="width:100%" onclick="this.parentElement.remove()">知道了</button>';
+  document.body.appendChild(pop);
+  selBar = null;
+}
+document.addEventListener("mousedown", (e)=>{
+  if(selBar && !selBar.contains(e.target)) selBar.remove();
+});
 
 /* ===== 设置 ===== */
 function renderSettings(){
