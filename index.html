@@ -102,6 +102,9 @@ textarea.input{resize:vertical;line-height:1.7}
 .feedback-box{border-radius:var(--radius-md);background:var(--highlight);padding:14px;font-size:14px;line-height:1.7}
 .suggestions li{list-style:none;border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;font-size:14px;line-height:1.7;display:flex;gap:10px;margin-top:8px}
 .suggestions .num{color:var(--primary);font-size:12px;font-weight:600;margin-top:2px;flex-shrink:0}
+.suggestions .sug-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.suggestions .sug-problem{color:var(--danger);font-weight:500}
+.suggestions .sug-fix{color:var(--text)}
 .reference-btn{position:relative;width:100%;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--paper);padding:20px 16px;font-size:14px;line-height:1.7;min-height:96px;display:grid;place-items:center;transition:transform .5s;transform-style:preserve-3d}
 .reference-btn .face{grid-area:1/1;backface-visibility:hidden}
 .reference-btn .back{grid-area:1/1;backface-visibility:hidden;transform:rotateY(180deg);width:100%}
@@ -132,9 +135,20 @@ textarea.input{resize:vertical;line-height:1.7}
 .read-tabs button.active{background:var(--paper);color:var(--primary);font-weight:600;box-shadow:var(--shadow-card)}
 .read-card{background:var(--paper);border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow-card)}
 .read-card mark{background:var(--mark);border-radius:2px;padding:0 2px;color:inherit}
-.para-row{display:grid;gap:10px;margin-top:16px}
-@media(min-width:900px){.para-row{grid-template-columns:minmax(0,1fr) 215px;gap:20px;align-items:start}}
-.para-text{font-family:var(--font-serif);font-size:16.5px;line-height:1.9;min-width:0}
+.read-body{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:20px;margin-top:14px;align-items:start}
+.read-article{min-width:0;position:relative}
+.read-article .para-text{font-family:var(--font-serif);font-size:16.5px;line-height:1.9;margin-bottom:16px}
+.read-article .orig-text{min-width:0}
+.read-cards{position:relative;min-width:0;align-self:stretch}
+.read-cards .item-card{position:absolute;left:0;right:0;margin:0}
+.read-cards.static .item-card{position:static;margin-bottom:8px}
+.item-card.flash{outline:2px solid var(--primary);outline-offset:2px}
+mark.flash{background:var(--primary);color:#fff;border-radius:2px}
+@media(max-width:719px){
+  .read-body{grid-template-columns:minmax(0,1fr)}
+  .read-cards{height:auto!important}
+  .read-cards .item-card{position:static;margin-bottom:8px}
+}
 .item-card{border:1px solid var(--border);border-radius:var(--radius-md);background:var(--highlight);padding:10px 12px;font-size:12.5px;line-height:1.6;margin-bottom:8px}
 .item-card .t{font-weight:600;font-size:13.5px;color:var(--text)}
 .item-card .m{color:var(--text-muted);margin-top:2px}
@@ -180,7 +194,7 @@ textarea.input{resize:vertical;line-height:1.7}
   <!-- ===== 首页 ===== -->
   <section id="view-home" class="view active">
     <div class="page-title">
-      <h1>英语工作语言</h1>
+      <h1>English Studio</h1>
       
     </div>
     <div class="card">
@@ -267,6 +281,7 @@ textarea.input{resize:vertical;line-height:1.7}
           <span class="face">点击查看答案</span>
           <span id="jRef" class="back"></span>
         </button>
+        <p class="read-hint">提示：选中参考答案或建议中的单词、短语，可「解释并加入」学习库。</p>
       </div>
       <div class="j-actions">
         <button id="btnRetry" class="btn btn-primary">按建议再改一版</button>
@@ -460,7 +475,6 @@ function unanswered(){
 function renderPractice(){
   const qs = unanswered();
   const total = sentences.length;
-  const processed = attempts.length + sentences.filter(s=>s.skipped).length;
   document.getElementById("todayCount").textContent = todayCount();
   if(qs.length===0){
     document.getElementById("qCard").classList.add("hidden");
@@ -472,7 +486,8 @@ function renderPractice(){
   document.getElementById("qCard").classList.remove("hidden");
   if(idx>=qs.length) idx = qs.length-1;
   curQuestion = qs[idx];
-  document.getElementById("qProgress").textContent = "第 "+(processed+1)+" / "+total+" 题";
+  const qNum = curQuestion ? sentences.findIndex(s=>s.id===curQuestion.id) : -1;
+  document.getElementById("qProgress").textContent = (qNum>=0 ? "第 "+(qNum+1)+" / "+total+" 题" : "");
   document.getElementById("qScene").textContent = curQuestion.scene==="work"?"工作":"生活";
   document.getElementById("qText").textContent = curQuestion.zh;
   document.getElementById("userText").value = "";
@@ -508,7 +523,7 @@ async function submitTranslation(){
   btn.disabled = true; btn.textContent = "判定中……";
   try{
     const j = await tryChat([
-      { role:"system", content:"你是英语水平判定老师。评估用户的中译英完成度，输出严格 JSON：score(整数0-5), passed(布尔，score>=4为true), feedback(中文总评1-2句), suggestions(英文更地道改法数组，最多3条)。" },
+      { role:"system", content:"你是英语水平判定老师。评估用户的中译英完成度，输出严格 JSON：score(整数0-5), passed(布尔，score>=4为true), feedback(中文总评1-2句), suggestions(数组，最多3条，每条为 {problem, fix}：problem 指出用户翻译中某处具体问题（中文，如某个词、搭配或语法不自然），fix 针对该问题给出修正（给出修正后的地道英文表达即可）。不要整句重写，只针对具体问题。" },
       { role:"user", content:"中文原文："+curQuestion.zh+"\n参考译文（仅供评分参考，不是唯一答案）："+curQuestion.en+"\n用户的翻译："+text }
     ]);
     const score = Math.max(0, Math.min(5, Math.round(Number(j.score)||0)));
@@ -516,7 +531,7 @@ async function submitTranslation(){
     showJudgement({ score, passed, feedback: j.feedback||"", suggestions: Array.isArray(j.suggestions)?j.suggestions.slice(0,3):[], ref: curQuestion.en, zh: curQuestion.zh, user: text });
     // 保存历史（覆盖最后一版）
     attempts = attempts.filter(a=>a.sentenceId!==curQuestion.id);
-    attempts.unshift({ id:"a"+Date.now(), sentenceId: curQuestion.id, zh: curQuestion.zh, user, ref: curQuestion.en, score, passed, feedback: j.feedback||"", time: Date.now() });
+    attempts.unshift({ id:"a"+Date.now(), sentenceId: curQuestion.id, zh: curQuestion.zh, user: text, ref: curQuestion.en, score, passed, feedback: j.feedback||"", time: Date.now() });
     LS.set("es_attempts", attempts.slice(0,200));
   }catch(e){
     msg(esc(e.message||"判定失败"), false);
@@ -537,7 +552,12 @@ function showJudgement(j){
   const sw = document.getElementById("jSugWrap");
   if(j.suggestions && j.suggestions.length){
     sw.style.display = "";
-    document.getElementById("jSug").innerHTML = j.suggestions.map((s,i)=>'<li><span class="num">'+(i+1)+'.</span><span>'+esc(s)+'</span></li>').join("");
+    document.getElementById("jSug").innerHTML = j.suggestions.map((s,i)=>{
+      if(s && typeof s === "object" && s.problem){
+        return '<li><span class="num">'+(i+1)+'.</span><span class="sug-body"><span class="sug-problem">'+esc(s.problem)+'</span>'+(s.fix?'<span class="sug-fix">改法：'+esc(s.fix)+'</span>':'')+'</span></li>';
+      }
+      return '<li><span class="num">'+(i+1)+'.</span><span>'+esc(s)+'</span></li>';
+    }).join("");
   } else sw.style.display = "none";
   document.getElementById("jRef").textContent = j.ref;
   const rb = document.getElementById("refBtn");
@@ -591,6 +611,57 @@ async function doLookup(){
   btn.disabled = false; btn.textContent = "查词";
 }
 
+/* ===== 练习页：选词解释并加入学习库 ===== */
+let pSelBar = null;
+function onPracticeSelect(){
+  const sel = window.getSelection();
+  if(!sel || sel.isCollapsed) return;
+  const text = sel.toString().trim();
+  if(text.length<1 || text.length>120) return;
+  const node = sel.anchorNode;
+  const el = node && node.nodeType===1 ? node : (node ? node.parentElement : null);
+  if(el && el.closest("textarea, input")) return;
+  const range = sel.getRangeAt(0);
+  showPracticeSelectBar(range.getBoundingClientRect(), text);
+}
+function showPracticeSelectBar(rect, text){
+  if(pSelBar) pSelBar.remove();
+  pSelBar = document.createElement("div");
+  pSelBar.style.cssText = "position:fixed;z-index:99;display:flex;align-items:center;gap:4px;background:var(--primary);color:#fff;border-radius:8px;padding:5px 6px;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,.18)";
+  const main = document.createElement("button");
+  main.style.cssText = "padding:3px 10px;border-radius:6px;background:transparent;color:#fff";
+  main.textContent = "解释并加入";
+  main.addEventListener("click", async ()=>{
+    main.textContent = "解释中……";
+    try{
+      const r = await tryChat([
+        { role:"system", content:"你是英语学习助手。解释用户选中的表达（可能是单词或短语，可能拼写有误），输出严格 JSON：expression(地道英文形式，若选中已是英文则原样), meaningZh(中文释义), usage(中文使用说明含搭配/易错点), example(英文例句), itemType(word/phrase/sentence)。" },
+        { role:"user", content:"选中的表达："+text+"\n（来自翻译练习的参考译文或建议）" }
+      ]);
+      const expr = String(r.expression||text).trim() || text;
+      const zh = String(r.meaningZh||"").trim() || expr;
+      const exists = favorites.some(f=>f.ref && f.ref.toLowerCase()===expr.toLowerCase());
+      if(!exists){
+        favorites.unshift({ zh, ref: expr, usage: String(r.usage||"").trim(), example: String(r.example||"").trim(), time: Date.now(), sourceType:"manual" });
+        LS.set("es_favorites", favorites.slice(0,200));
+      }
+      showExplainPopup(r, text, "✓ 已加入学习库（收藏表达）");
+    }catch(e){ pSelBar.textContent = "解释失败"; setTimeout(()=>pSelBar&&pSelBar.remove(),1500); }
+  });
+  pSelBar.appendChild(main);
+  const cancel = document.createElement("button");
+  cancel.style.cssText = "padding:3px 8px;border-radius:6px;color:rgba(255,255,255,.85);font-size:12px";
+  cancel.textContent = "✕";
+  cancel.addEventListener("click", ()=>{ pSelBar.remove(); pSelBar = null; });
+  pSelBar.appendChild(cancel);
+  document.body.appendChild(pSelBar);
+  pSelBar.style.left = Math.min(rect.left, window.innerWidth - pSelBar.offsetWidth - 8) + "px";
+  pSelBar.style.top = (rect.bottom + 8) + "px";
+}
+document.getElementById("view-practice").addEventListener("mouseup", ()=>{
+  setTimeout(onPracticeSelect, 10);
+});
+
 /* ===== 增加题目 ===== */
 document.getElementById("btnAddMore").addEventListener("click", async ()=>{
   const btn = document.getElementById("btnAddMore");
@@ -606,7 +677,7 @@ document.getElementById("btnAddMore").addEventListener("click", async ()=>{
     for(const it of items){
       const zh = it.zhText.trim();
       if(!zh || sentences.some(s=>s.zh===zh)) continue;
-      sentences.unshift({ id:"s"+Date.now()+Math.random().toString(36).slice(2,6), zh, en: it.enReference.trim(), scene: it.scene==="life"?"life":"work", skipped:false, created: Date.now() });
+      sentences.push({ id:"s"+Date.now()+Math.random().toString(36).slice(2,6), zh, en: it.enReference.trim(), scene: it.scene==="life"?"life":"work", skipped:false, created: Date.now() });
       added++;
     }
     LS.set("es_sentences", sentences);
@@ -641,6 +712,7 @@ function renderFavs(){
     '<button class="btn-outline btn" style="padding:4px 10px;font-size:12px" onclick="removeFav(this)">移除</button></div>'+
     '<div class="ref mt-2">'+esc(f.ref)+'</div>'+
     (f.note?'<div class="text-xs text-muted mt-2">'+esc(f.note)+'</div>':'')+
+    (f.usage?'<div class="text-xs text-muted mt-2">'+esc(f.usage)+'</div>':'')+
     (f.example?'<div class="italic text-sm mt-2">'+esc(f.example)+'</div>':'')+
     '<div class="time">收藏于 '+fmt(f.time)+'</div></div>'
   ).join("");
@@ -791,8 +863,15 @@ function showArticle(id){
       '<p class="read-hint">提示：选中文章中的单词、短语或句子，可解释并加入知识点卡片；AI 推荐的知识点会自动标亮。</p>'+
     '</div>';
   renderAdapted(a);
+  bindReadResize();
   document.getElementById("rtAdapted").addEventListener("click", ()=>renderAdapted(a));
   document.getElementById("rtOriginal").addEventListener("click", ()=>renderOriginal(a));
+  box.addEventListener("click", (e)=>{
+    const m = e.target.closest("mark");
+    if(m && m.dataset.term) scrollToCard(m.dataset.term);
+    const c = e.target.closest(".item-card");
+    if(c && c.dataset.term && !e.target.closest(".del")) scrollToMark(c.dataset.term);
+  });
   box.onmouseup = ()=>onArticleSelect(a);
 }
 function renderAdapted(a){
@@ -802,23 +881,16 @@ function renderAdapted(a){
   const paras = String(a.content||"").split(/\n+/).map(p=>p.trim()).filter(Boolean);
   const items = a.items||[];
   const terms = items.map(i=>i.text);
-  // 每个表达挂到它第一次出现的段落右侧
-  const placed = {}, cardsByPara = {};
-  paras.forEach((p, idx)=>{
-    const pl = p.toLowerCase();
-    for(const it of items){
-      const key = it.text.toLowerCase();
-      if(placed[key]) continue;
-      if(pl.includes(key)){ placed[key] = true; (cardsByPara[idx]=cardsByPara[idx]||[]).push(it); }
-    }
-  });
-  wrap.innerHTML = paras.length ? paras.map((p, idx)=>{
-    const cards = cardsByPara[idx]||[];
-    return '<div class="para-row">'+
-      '<p class="para-text">'+highlightHtml(p, terms)+'</p>'+
-      (cards.length ? '<aside>'+cards.map(cardHtml).join("")+'</aside>' : '')+
-    '</div>';
-  }).join("") : '<p class="text-muted">这篇文章内容为空。</p>';
+  if(!paras.length){
+    wrap.innerHTML = '<p class="text-muted">这篇文章内容为空。</p>';
+    return;
+  }
+  // 左栏：完整连续的文章；右栏：独立知识点卡片，按对应段落定位，随文章一起滚动
+  wrap.innerHTML = '<div class="read-body">'+
+    '<div class="read-article">'+paras.map(p=>'<p class="para-text">'+highlightHtml(p, terms)+'</p>').join("")+'</div>'+
+    '<div class="read-cards">'+items.map((it,i)=>cardHtml(it,i)).join("")+'</div>'+
+  '</div>';
+  placeCards();
 }
 function renderOriginal(a){
   const wrap = document.getElementById("readBodyWrap");
@@ -826,16 +898,75 @@ function renderOriginal(a){
   if(tabs[0]){ tabs[0].className = ""; tabs[1].className = "active"; }
   wrap.innerHTML = '<div class="orig-text">'+(a.original ? esc(a.original) : '<span class="text-muted">这篇文章没有保存原文。</span>')+'</div>';
 }
-function cardHtml(it){
+function cardHtml(it, i){
   const typeLabel = {word:"单词", phrase:"短语", sentence:"句子"}[it.itemType] || "单词";
   const srcLabel = it.sourceType==="ai" ? "AI 推荐" : "手动收藏";
-  return '<div class="item-card">'+
+  return '<div class="item-card" id="rc-'+i+'" data-term="'+esc(it.text)+'">'+
     '<div class="t">'+esc(it.text)+'</div>'+
     (it.meaningZh ? '<div class="m">'+esc(it.meaningZh)+'</div>' : '')+
     (it.usage ? '<div class="u">'+esc(it.usage)+'</div>' : '')+
     '<div class="meta"><span class="tag">'+typeLabel+' · '+srcLabel+'</span>'+
     '<button class="del" onclick="delItem(this)">删除</button></div>'+
   '</div>';
+}
+function findCardByTerm(term){
+  const cards = document.querySelectorAll("#articleView .item-card");
+  for(const c of cards){ if(c.dataset.term === term) return c; }
+  return null;
+}
+function findMarkByTerm(term){
+  const marks = document.querySelectorAll("#readBodyWrap mark");
+  for(const m of marks){ if(m.dataset.term === term) return m; }
+  return null;
+}
+function scrollToCard(term){
+  const card = findCardByTerm(term);
+  if(!card) return;
+  card.classList.add("flash");
+  setTimeout(()=>card.classList.remove("flash"), 1500);
+  card.scrollIntoView({behavior:"smooth", block:"center"});
+}
+function scrollToMark(term){
+  const m = findMarkByTerm(term);
+  if(!m) return;
+  m.classList.add("flash");
+  setTimeout(()=>m.classList.remove("flash"), 1500);
+  m.scrollIntoView({behavior:"smooth", block:"center"});
+}
+let readResizeBound = false;
+function placeCards(){
+  const body = document.querySelector("#readBodyWrap .read-body");
+  if(!body || body.classList.contains("static")) return;
+  const art = body.querySelector(".read-article");
+  const col = body.querySelector(".read-cards");
+  const cards = col ? col.querySelectorAll(".item-card") : [];
+  if(!cards.length) return;
+  cards.forEach(c=>c.style.top = "0px");
+  const marks = [...art.querySelectorAll("mark")];
+  let maxBottom = art.offsetHeight;
+  const placed = []; // [{top, bottom}]
+  cards.forEach(c=>{
+    const mark = marks.find(m=>m.dataset.term === c.dataset.term);
+    const para = mark ? mark.closest(".para-text") : null;
+    let top = para ? para.offsetTop : 0;
+    // 同段落多张卡片自动往下错开，避免重叠
+    let guard = 0;
+    while(placed.some(p=> top < p.bottom && top + c.offsetHeight > p.top)){
+      top = Math.max(...placed.filter(p=> top < p.bottom && top + c.offsetHeight > p.top).map(p=>p.bottom)) + 8;
+      if(++guard > 50) break;
+    }
+    c.style.top = top + "px";
+    placed.push({top, bottom: top + c.offsetHeight});
+    maxBottom = Math.max(maxBottom, top + c.offsetHeight);
+  });
+  col.style.height = Math.max(art.offsetHeight, maxBottom + 12) + "px";
+}
+function bindReadResize(){
+  if(readResizeBound) return;
+  readResizeBound = true;
+  window.addEventListener("resize", ()=>{
+    if(document.querySelector("#articleView .read-body")) placeCards();
+  });
 }
 function delItem(el){
   if(!curArticle || !window.confirm("确定删除这条知识点吗？")) return;
@@ -849,8 +980,9 @@ function highlightHtml(text, terms){
   if(!terms || !terms.length) return esc(text);
   const pattern = terms.map(escapeRegExp).sort((x,y)=>y.length-x.length).join("|");
   const lower = terms.map(t=>t.toLowerCase());
+  const termOf = t => { const i = lower.indexOf(t.toLowerCase()); return i>=0 ? terms[i] : t; };
   return String(text).split(new RegExp("("+pattern+")","gi")).map(p=>{
-    if(p && lower.includes(p.toLowerCase())) return '<mark>'+esc(p)+'</mark>';
+    if(p && lower.includes(p.toLowerCase())) return '<mark data-term="'+esc(termOf(p))+'">'+esc(p)+'</mark>';
     return esc(p);
   }).join("");
 }
@@ -922,7 +1054,7 @@ function addItemToArticle(a, expr, itemType, meaningZh, usage, example){
   }
   renderAdapted(a);
 }
-function showExplainPopup(r, text){
+function showExplainPopup(r, text, doneMsg){
   if(selBar) selBar.remove();
   const pop = document.createElement("div");
   pop.style.cssText = "position:fixed;z-index:99;background:var(--paper);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,.15);max-width:340px;font-size:13.5px;line-height:1.8;left:50%;top:50%;transform:translate(-50%,-50%)";
@@ -933,13 +1065,14 @@ function showExplainPopup(r, text){
     '<div class="text-muted">'+esc(r.meaningZh||"")+'</div>'+
     '<div class="mt-2">'+esc(r.usage||"")+'</div>'+
     '<div class="italic mt-2">'+esc(r.example||"")+'</div>'+
-    '<div class="mt-2 text-primary">✓ 已加入知识点卡片</div>'+
+    '<div class="mt-2 text-primary">'+(doneMsg||"✓ 已加入知识点卡片")+'</div>'+
     '<button class="btn btn-outline mt-3" style="width:100%" onclick="this.parentElement.remove()">知道了</button>';
   document.body.appendChild(pop);
   selBar = null;
 }
 document.addEventListener("mousedown", (e)=>{
   if(selBar && !selBar.contains(e.target)) selBar.remove();
+  if(typeof pSelBar!=="undefined" && pSelBar && !pSelBar.contains(e.target)) pSelBar.remove();
 });
 
 /* ===== 设置 ===== */
