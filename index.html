@@ -157,6 +157,15 @@ mark.flash{background:var(--primary);color:#fff;border-radius:2px}
 .item-card .tag{font-size:10.5px;color:var(--text-muted)}
 .item-card .del{font-size:11px;color:var(--text-muted);opacity:.65;transition:all .15s}
 .item-card .del:hover{color:var(--danger);opacity:1}
+.read-fav-item{border:1px solid var(--border);border-radius:var(--radius-md);background:var(--highlight);padding:10px 12px;font-size:12.5px;line-height:1.6;margin-top:8px}
+.read-fav-item .t{font-weight:600;font-size:13.5px;color:var(--text)}
+.read-fav-item .m{color:var(--text-muted);margin-top:2px}
+.read-fav-item .u{color:var(--text-muted);margin-top:5px;font-size:11.5px;line-height:1.5}
+.read-fav-item .x{color:var(--text-muted);margin-top:5px;font-size:11.5px;font-style:italic}
+.read-fav-item .meta{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
+.read-fav-item .tag{font-size:10.5px;color:var(--text-muted)}
+.read-fav-item .del{font-size:11px;color:var(--text-muted);opacity:.65;transition:all .15s}
+.read-fav-item .del:hover{color:var(--danger);opacity:1}
 .read-hint{margin-top:14px;font-size:12px;color:var(--text-muted);line-height:1.7}
 .orig-text{white-space:pre-wrap;line-height:1.9;font-size:14.5px;margin-top:14px}
 
@@ -215,8 +224,8 @@ mark.flash{background:var(--primary);color:#fff;border-radius:2px}
           <p>粘贴或上传一段中文/英文材料（支持 txt 文件），选目标水平（A2/B1/B2），AI 会翻译并改写成适合你水平的英文。阅读时选中文本，可一键加入学习库。</p>
         </div>
         <div class="guide-step">
-          <b>④ 学习库：收藏的表达 + 翻译历史</b>
-          <p>「收藏表达」里存你在练习和阅读中收藏的内容；「翻译历史」里存你提交过的翻译（最后版本答案）。都可以搜索、查看。</p>
+          <b>④ 学习库：收藏表达 + 阅读收藏 + 翻译历史</b>
+          <p>「收藏表达」存练习中收藏的词汇；「阅读收藏」按文章整理成合集，阅读时收藏的词句都在这里；「翻译历史」存你提交过的翻译（最后版本答案）。</p>
         </div>
         <div class="guide-step">
           <b>⑤ 卡片复习：巩固记忆</b>
@@ -325,11 +334,13 @@ mark.flash{background:var(--primary);color:#fff;border-radius:2px}
       <h1>学习库</h1>
       
     </div>
-    <div class="flex gap-3 center mb-2" style="justify-content:center">
+    <div class="flex gap-3 center mb-2" style="justify-content:center;flex-wrap:wrap">
       <button id="libTabFav" class="btn btn-primary" style="padding:6px 16px;font-size:13px">收藏表达</button>
+      <button id="libTabRead" class="btn btn-outline" style="padding:6px 16px;font-size:13px">阅读收藏</button>
       <button id="libTabHist" class="btn btn-outline" style="padding:6px 16px;font-size:13px">翻译历史</button>
     </div>
     <div id="favList"></div>
+    <div id="readList"></div>
     <div id="histList"></div>
   </section>
 
@@ -692,17 +703,63 @@ document.getElementById("btnAddMore").addEventListener("click", async ()=>{
 /* ===== 学习库 ===== */
 let libTab = "fav";
 document.getElementById("libTabFav").addEventListener("click", ()=>{ libTab="fav"; renderLibrary(); });
+document.getElementById("libTabRead").addEventListener("click", ()=>{ libTab="read"; renderLibrary(); });
 document.getElementById("libTabHist").addEventListener("click", ()=>{ libTab="hist"; renderLibrary(); });
 function fmt(t){ const d=new Date(t); const p=n=>String(n).padStart(2,"0"); return p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes()); }
 function renderLibrary(){
   const favBtn = document.getElementById("libTabFav");
+  const readBtn = document.getElementById("libTabRead");
   const hisBtn = document.getElementById("libTabHist");
   favBtn.className = "btn "+(libTab==="fav"?"btn-primary":"btn-outline");
+  readBtn.className = "btn "+(libTab==="read"?"btn-primary":"btn-outline");
   hisBtn.className = "btn "+(libTab==="hist"?"btn-primary":"btn-outline");
   document.getElementById("favList").classList.toggle("hidden", libTab!=="fav");
+  document.getElementById("readList").classList.toggle("hidden", libTab!=="read");
   document.getElementById("histList").classList.toggle("hidden", libTab!=="hist");
   if(libTab==="fav") renderFavs();
-  else renderHist();
+  else if(libTab==="hist") renderHist();
+  else renderReadFavs();
+}
+function renderReadFavs(){
+  const box = document.getElementById("readList");
+  const withItems = articles.filter(a=>(a.items||[]).length>0);
+  if(!withItems.length){
+    box.innerHTML = '<div class="empty">阅读模块还没有收藏。去「阅读」生成文章，选中文本即可加入知识点。</div>';
+    return;
+  }
+  box.innerHTML = withItems.map(a=>{
+    const items = a.items||[];
+    return '<div class="list-card">'+
+      '<div class="item-head"><span class="zh">'+esc(a.title)+'</span>'+
+      '<span class="text-xs text-muted">'+items.length+' 个知识点</span></div>'+
+      '<div class="text-xs text-muted mt-1">'+a.level+' · '+fmt(a.time)+'</div>'+
+      '<div class="mt-2">'+items.map(it=>readFavItemHtml(it)).join("")+'</div>'+
+      '<div class="mt-3"><button class="btn btn-outline" style="padding:5px 12px;font-size:12.5px" onclick="openArticleFromLib(\''+esc(a.id)+'\')">打开文章 ›</button></div>'+
+    '</div>';
+  }).join("");
+}
+function readFavItemHtml(it){
+  const typeLabel = {word:"单词", phrase:"短语", sentence:"句子"}[it.itemType] || "单词";
+  return '<div class="read-fav-item">'+
+    '<div class="t">'+esc(it.text)+'</div>'+
+    (it.meaningZh ? '<div class="m">'+esc(it.meaningZh)+'</div>' : '')+
+    (it.usage ? '<div class="u">'+esc(it.usage)+'</div>' : '')+
+    (it.example ? '<div class="x">'+esc(it.example)+'</div>' : '')+
+    '<div class="meta"><span class="tag">'+typeLabel+'</span>'+
+    '<button class="del" onclick="delReadFavItem(\''+esc(it.id)+'\')">删除</button></div>'+
+  '</div>';
+}
+function delReadFavItem(id){
+  const a = articles.find(x=>(x.items||[]).some(i=>i.id===id));
+  if(!a || !window.confirm("确定删除这条知识点吗？")) return;
+  a.items = (a.items||[]).filter(i=>i.id!==id);
+  LS.set("es_articles", articles);
+  renderReadFavs();
+}
+function openArticleFromLib(id){
+  switchView("read");
+  const a = articles.find(x=>x.id===id);
+  if(a) showArticle(id);
 }
 function renderFavs(){
   const box = document.getElementById("favList");
