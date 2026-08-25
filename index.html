@@ -880,7 +880,7 @@ function renderAdapted(a){
   if(tabs[0]){ tabs[0].className = "active"; tabs[1].className = ""; }
   const paras = String(a.content||"").split(/\n+/).map(p=>p.trim()).filter(Boolean);
   const items = a.items||[];
-  const terms = items.map(i=>i.text);
+  const terms = items.flatMap(i=>[i.text, i.match].filter(Boolean));
   if(!paras.length){
     wrap.innerHTML = '<p class="text-muted">这篇文章内容为空。</p>';
     return;
@@ -901,7 +901,7 @@ function renderOriginal(a){
 function cardHtml(it, i){
   const typeLabel = {word:"单词", phrase:"短语", sentence:"句子"}[it.itemType] || "单词";
   const srcLabel = it.sourceType==="ai" ? "AI 推荐" : "手动收藏";
-  return '<div class="item-card" id="rc-'+i+'" data-term="'+esc(it.text)+'">'+
+  return '<div class="item-card" id="rc-'+i+'" data-term="'+esc(it.text)+'"'+(it.match?' data-match="'+esc(it.match)+'"':'')+'>'+
     '<div class="t">'+esc(it.text)+'</div>'+
     (it.meaningZh ? '<div class="m">'+esc(it.meaningZh)+'</div>' : '')+
     (it.usage ? '<div class="u">'+esc(it.usage)+'</div>' : '')+
@@ -939,16 +939,26 @@ function placeCards(){
   if(!body || body.classList.contains("static")) return;
   const art = body.querySelector(".read-article");
   const col = body.querySelector(".read-cards");
-  const cards = col ? col.querySelectorAll(".item-card") : [];
+  const cards = col ? [...col.querySelectorAll(".item-card")] : [];
   if(!cards.length) return;
-  cards.forEach(c=>c.style.top = "0px");
   const marks = [...art.querySelectorAll("mark")];
-  let maxBottom = art.offsetHeight;
-  const placed = []; // [{top, bottom}]
-  cards.forEach(c=>{
-    const mark = marks.find(m=>m.dataset.term === c.dataset.term);
+  // 每张卡片定位到它在原文中首次出现的位置，并按出现顺序排序
+  const anchored = cards.map(c=>{
+    let mark = null;
+    for(const m of marks){
+      if(m.dataset.term === c.dataset.term || (c.dataset.match && m.dataset.term === c.dataset.match)){ mark = m; break; }
+    }
     const para = mark ? mark.closest(".para-text") : null;
-    let top = para ? para.offsetTop : 0;
+    return { c, paraTop: para ? para.offsetTop : 0, markTop: mark ? mark.offsetTop : 0 };
+  });
+  anchored.sort((a,b)=> (a.paraTop - b.paraTop) || (a.markTop - b.markTop));
+  // DOM 顺序与视觉顺序保持一致
+  anchored.forEach(({c})=>col.appendChild(c));
+  cards.forEach(c=>c.style.top = "0px");
+  const placed = []; // [{top, bottom}]
+  let maxBottom = art.offsetHeight;
+  anchored.forEach(({c, paraTop})=>{
+    let top = paraTop;
     // 同段落多张卡片自动往下错开，避免重叠
     let guard = 0;
     while(placed.some(p=> top < p.bottom && top + c.offsetHeight > p.top)){
@@ -1017,7 +1027,7 @@ function showSelectBar(rect, text, a){
         { role:"user", content:"选中的表达："+text+"\n所在文章：《"+a.title+"》" }
       ]);
       const expr = String(r.expression||text).trim() || text;
-      addItemToArticle(a, expr, ["word","phrase","sentence"].includes(r.itemType)?r.itemType:(/\s/.test(expr)?"phrase":"word"), r.meaningZh||"", r.usage||"", r.example||"");
+      addItemToArticle(a, expr, ["word","phrase","sentence"].includes(r.itemType)?r.itemType:(/\s/.test(expr)?"phrase":"word"), r.meaningZh||"", r.usage||"", r.example||"", text);
       showExplainPopup(r, text);
     }catch(e){ selBar.textContent = "解释失败"; setTimeout(()=>selBar&&selBar.remove(),1500); }
   });
@@ -1046,10 +1056,12 @@ function showSelectBar(rect, text, a){
   selBar.style.left = Math.min(rect.left, window.innerWidth - selBar.offsetWidth - 8) + "px";
   selBar.style.top = (rect.bottom + 8) + "px";
 }
-function addItemToArticle(a, expr, itemType, meaningZh, usage, example){
+function addItemToArticle(a, expr, itemType, meaningZh, usage, example, selText){
   const items = a.items = a.items||[];
   if(!items.some(i=>i.text.toLowerCase()===expr.toLowerCase())){
-    items.push({ id:"i"+Date.now()+Math.random().toString(36).slice(2,6), text:expr, itemType, meaningZh, usage, sourceSentence:"", sourceType:"manual", example });
+    const sel = (selText||"").trim();
+    const match = (sel && sel.toLowerCase()!==expr.toLowerCase()) ? sel : "";
+    items.push({ id:"i"+Date.now()+Math.random().toString(36).slice(2,6), text:expr, match, itemType, meaningZh, usage, sourceSentence:"", sourceType:"manual", example });
     LS.set("es_articles", articles);
   }
   renderAdapted(a);
