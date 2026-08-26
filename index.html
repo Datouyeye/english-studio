@@ -134,6 +134,13 @@ textarea.input{resize:vertical;line-height:1.7}
 .read-fav-head:hover{opacity:.85}
 .read-fav-meta{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .read-fav-arrow{font-size:12px;color:var(--text-muted)}
+.ctx-menu{position:fixed;z-index:200;background:var(--paper);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:0 8px 24px rgba(0,0,0,.12);padding:6px;min-width:160px;font-size:13px}
+.ctx-title{font-size:11px;color:var(--text-muted);padding:4px 10px;border-bottom:1px solid var(--border);margin-bottom:4px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctx-item{padding:7px 10px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.ctx-item:hover{background:var(--primary-soft)}
+.ctx-item.danger{color:var(--danger)}
+.ctx-item.danger:hover{background:color-mix(in srgb,var(--danger) 10%,transparent)}
+.ctx-sep{height:1px;background:var(--border);margin:4px 6px}
 
 /* 阅读：知识点卡片 */
 .read-tabs{display:flex;gap:4px;background:var(--primary-soft);padding:3px;border-radius:var(--radius-md);margin-top:14px}
@@ -316,8 +323,9 @@ mark.flash{background:var(--primary);color:#fff;border-radius:2px}
     <div id="readCreate" class="card">
       <div class="sec-title">材料（中文/英文均可，AI 会翻译并改写成英文）</div>
       <textarea id="readSource" class="input" rows="5" placeholder="粘贴一段中文或英文材料在这里……也可以点下面「选择文件」读取 txt 文件"></textarea>
-      <div class="flex gap-2 mt-2" style="align-items:center">
+      <div class="flex gap-2 mt-2" style="align-items:center;flex-wrap:wrap">
         <button id="btnPickFile" class="btn btn-outline" style="padding:5px 12px;font-size:12.5px">选择文件（txt）</button>
+        <button id="btnClearSource" class="btn btn-outline" style="padding:5px 12px;font-size:12.5px">清空</button>
         <input id="fileInput" type="file" accept=".txt,.md,.text" class="hidden" />
         <span id="fileName" class="text-xs text-muted"></span>
       </div>
@@ -937,13 +945,60 @@ function renderArticleList(){
     return;
   }
   box.innerHTML = '<div class="sec-title">我的文章'+(kw?'（'+list.length+' 篇）':'')+'</div>' + list.map(a=>
-    '<div class="list-card" style="cursor:pointer" onclick="showArticle(\''+a.id+'\')">'+
+    '<div class="list-card" style="cursor:pointer" onclick="showArticle(\''+a.id+'\')" oncontextmenu="showCtxMenu(event,\''+a.id+'\')">'+
       '<div class="row"><span class="zh">'+esc(a.title)+'</span>'+
       '<span class="text-xs text-muted">'+levelLabel(a.level)+' · '+fmt(a.time)+'</span></div>'+
     '</div>'
   ).join("");
 }
 document.getElementById("readSearch").addEventListener("input", renderArticleList);
+document.getElementById("btnClearSource").addEventListener("click", ()=>{
+  document.getElementById("readSource").value = "";
+  document.getElementById("fileName").textContent = "";
+});
+let ctxMenu = null;
+function showCtxMenu(e, id){
+  e.preventDefault();
+  removeCtxMenu();
+  const a = articles.find(x=>x.id===id);
+  if(!a) return;
+  ctxMenu = document.createElement("div");
+  ctxMenu.className = "ctx-menu";
+  ctxMenu.innerHTML =
+    '<div class="ctx-title">'+esc(a.title)+'</div>'+
+    '<div class="ctx-item" data-act="level1">设为 Level 1</div>'+
+    '<div class="ctx-item" data-act="level2">设为 Level 2</div>'+
+    '<div class="ctx-item" data-act="level3">设为 Level 3</div>'+
+    '<div class="ctx-sep"></div>'+
+    '<div class="ctx-item danger" data-act="del">删除文章</div>';
+  document.body.appendChild(ctxMenu);
+  const mw = ctxMenu.offsetWidth, mh = ctxMenu.offsetHeight;
+  ctxMenu.style.left = Math.min(e.clientX, window.innerWidth - mw - 8) + "px";
+  ctxMenu.style.top = Math.min(e.clientY, window.innerHeight - mh - 8) + "px";
+  ctxMenu.addEventListener("click", (ev)=>{
+    const item = ev.target.closest(".ctx-item");
+    if(!item) return;
+    const act = item.dataset.act;
+    if(act==="del"){
+      if(window.confirm("确定删除文章《"+a.title+"》吗？该文章及其知识点会一起删除。")){
+        articles = articles.filter(x=>x.id!==id);
+        LS.set("es_articles", articles);
+        if(curArticle && curArticle.id===id) curArticle = null;
+        renderArticleList();
+      }
+    }else{
+      a.level = act;
+      LS.set("es_articles", articles);
+      renderArticleList();
+    }
+    removeCtxMenu();
+  });
+}
+function removeCtxMenu(){
+  if(ctxMenu){ ctxMenu.remove(); ctxMenu = null; }
+}
+document.addEventListener("click", ()=>removeCtxMenu());
+document.addEventListener("contextmenu", (e)=>{ if(!e.target.closest("#articleList .list-card")) removeCtxMenu(); });
 document.querySelectorAll("#lvl1,#lvl2,#lvl3").forEach(b=>{
   b.addEventListener("click", ()=>{
     readLevel = "level"+b.id.replace("lvl","");
