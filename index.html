@@ -925,6 +925,35 @@ const LEVEL_PROMPTS = {
 function levelLabel(l){
   return ({level1:"Level 1", level2:"Level 2", level3:"Level 3"}[l]) || l;
 }
+function buildAdaptMessages(level, originalText){
+  const levelPrompt = LEVEL_PROMPTS[level] || LEVEL_PROMPTS.level1;
+  return [
+    { role:"system", content:"你是英语分级改写老师。把用户提供的材料改写成目标水平的英文文章：如果材料是英文，直接按水平简化改写（保留原意与关键信息）；如果材料是中文，先翻译成英文，再按水平改写。输出严格 JSON：title(中文标题), content(英文全文，用\\n\\n分段), sourceLanguage(原文语言，zh/en/other), learningItems(3-8个对学习者最有价值的英文表达数组，每项 {text(英文表达，必须完整出现在content中), itemType(word/phrase/sentence), meaningZh(中文释义), usage(中文使用说明含搭配/易错点), sourceSentence(该表达在content中的原句)})。\n\n"+levelPrompt },
+    { role:"user", content:"目标水平："+level+"（Level 1≈CEFR B1，Level 2≈B1+至B2，Level 3≈B2）\n原文：\n"+String(originalText||"").slice(0,4000) }
+  ];
+}
+async function regenerateArticleLevel(a){
+  const level = a.level;
+  const original = String(a.original || a.content || "");
+  readMsg("正在把《"+a.title+"》改写成 "+levelLabel(level)+"……", true);
+  try{
+    const r = await tryChat(buildAdaptMessages(level, original));
+    const content = String(r.content||"").trim();
+    if(!content) throw new Error("生成内容为空");
+    a.title = r.title || a.title;
+    a.content = content;
+    a.items = postprocessItems(r.learningItems, content);
+    LS.set("es_articles", articles);
+    renderArticleList();
+    if(curArticle && curArticle.id===a.id){
+      curArticle = a;
+      showArticle(a.id);
+    }
+    readMsg("已把《"+a.title+"》改写为 "+levelLabel(level)+"。", true);
+  }catch(e){
+    readMsg(esc(e.message||"改写失败"), false);
+  }
+}
 let curArticle = null;
 
 function renderRead(){
@@ -990,6 +1019,7 @@ function showCtxMenu(e, id){
       a.level = act;
       LS.set("es_articles", articles);
       renderArticleList();
+      regenerateArticleLevel(a);
     }
     removeCtxMenu();
   });
@@ -1025,11 +1055,7 @@ document.getElementById("btnGenArticle").addEventListener("click", async ()=>{
   const btn = document.getElementById("btnGenArticle");
   btn.disabled = true; btn.textContent = "生成中……";
   try{
-    const levelPrompt = LEVEL_PROMPTS[readLevel] || LEVEL_PROMPTS.level1;
-    const r = await tryChat([
-      { role:"system", content:"你是英语分级改写老师。把用户提供的材料改写成目标水平的英文文章：如果材料是英文，直接按水平简化改写（保留原意与关键信息）；如果材料是中文，先翻译成英文，再按水平改写。输出严格 JSON：title(中文标题), content(英文全文，用\\n\\n分段), sourceLanguage(原文语言，zh/en/other), learningItems(3-8个对学习者最有价值的英文表达数组，每项 {text(英文表达，必须完整出现在content中), itemType(word/phrase/sentence), meaningZh(中文释义), usage(中文使用说明含搭配/易错点), sourceSentence(该表达在content中的原句)})。\n\n"+levelPrompt },
-      { role:"user", content:"目标水平："+readLevel+"（Level 1≈CEFR B1，Level 2≈B1+至B2，Level 3≈B2）\n原文：\n"+text.slice(0,4000) }
-    ]);
+    const r = await tryChat(buildAdaptMessages(readLevel, text));
     const title = r.title || "改编文章";
     const content = String(r.content||"").trim();
     if(!content) throw new Error("生成内容为空");
