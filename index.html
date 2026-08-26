@@ -440,6 +440,7 @@ let favorites = [];      // 收藏
 let idx = 0;             // 当前题目在队列中的位置
 let curQuestion = null;  // 当前题目
 let judging = false;     // 是否已判定
+let practiceRendered = false; // 练习页是否已渲染（切回时保留状态，不自动跳题）
 
 function boot(){
   sentences = LS.get("es_sentences", null);
@@ -468,7 +469,7 @@ function switchView(name){
   const navName = name==="article" ? "read" : name;
   document.querySelector('.nav-item[data-view="'+navName+'"]').classList.add("active");
   document.getElementById("main").classList.toggle("wide", name==="read" || name==="article");
-  if(name==="practice") renderPractice();
+  if(name==="practice"){ if(!practiceRendered){ renderPractice(); practiceRendered = true; } }
   if(name==="read") renderRead();
   if(name==="library") renderLibrary();
   if(name==="review") renderReview();
