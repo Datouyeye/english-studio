@@ -227,7 +227,7 @@ mark.flash{background:var(--primary);color:#fff;border-radius:2px}
         </div>
         <div class="guide-step">
           <b>③ 文章阅读：AI 分级改写</b>
-          <p>粘贴或上传一段中文/英文材料（支持 txt 文件），选目标水平（A2/B1/B2），AI 会翻译并改写成适合你水平的英文。阅读时选中文本，可一键加入学习库。</p>
+          <p>粘贴或上传一段中文/英文材料（支持 txt 文件），选难度（Level 1/2/3），AI 会翻译并改写成适合你水平的英文。阅读时选中文本，可一键加入学习库。</p>
         </div>
         <div class="guide-step">
           <b>④ 学习库：收藏表达 + 阅读收藏 + 翻译历史</b>
@@ -322,10 +322,10 @@ mark.flash{background:var(--primary);color:#fff;border-radius:2px}
         <span id="fileName" class="text-xs text-muted"></span>
       </div>
       <div class="flex gap-2 mt-3" style="align-items:center">
-        <span class="text-xs text-muted">目标水平</span>
-        <button id="lvlA2" class="btn btn-outline" style="padding:5px 14px;font-size:13px">A2</button>
-        <button id="lvlB1" class="btn btn-primary" style="padding:5px 14px;font-size:13px">B1</button>
-        <button id="lvlB2" class="btn btn-outline" style="padding:5px 14px;font-size:13px">B2</button>
+        <span class="text-xs text-muted">难度</span>
+        <button id="lvl1" class="btn btn-outline" style="padding:5px 14px;font-size:13px">Level 1</button>
+        <button id="lvl2" class="btn btn-primary" style="padding:5px 14px;font-size:13px">Level 2</button>
+        <button id="lvl3" class="btn btn-outline" style="padding:5px 14px;font-size:13px">Level 3</button>
         <button id="btnGenArticle" class="btn btn-primary" style="margin-left:auto">生成改编文章</button>
       </div>
       <div id="readMsg" class="msg"></div>
@@ -752,7 +752,7 @@ function renderReadFavs(){
         '<span class="read-fav-meta"><span class="text-xs text-muted">'+items.length+' 个知识点</span><span class="read-fav-arrow">▸</span></span>'+
       '</div>'+
       '<div class="read-fav-body hidden">'+
-        '<div class="text-xs text-muted mt-1">'+a.level+' · '+fmt(a.time)+'</div>'+
+        '<div class="text-xs text-muted mt-1">'+levelLabel(a.level)+' · '+fmt(a.time)+'</div>'+
         '<div class="mt-2">'+items.map(it=>readFavItemHtml(it)).join("")+'</div>'+
       '</div>'+
     '</div>';
@@ -875,7 +875,48 @@ function markKnown(){
 
 /* ===== 阅读 ===== */
 let articles = LS.get("es_articles", []);
-let readLevel = "B1";
+let readLevel = "level2";
+const LEVEL_PROMPTS = {
+  level1: `你是英语学习材料设计师。
+请将下面的中文内容翻译成适合 CEFR B1 英语学习者的英文。
+要求：
+1. 使用清晰、自然、常见的英语表达。
+2. 优先使用高频词汇和常见句型，避免不必要的高级词汇。
+3. 句子长度适中，尽量避免过于复杂的从句和嵌套结构。
+4. 保留原文的核心信息，不要随意增加或删减重要内容。
+5. 可以适当调整中文原文的表达顺序，使英文自然，但不要改变原意。
+6. 对于新闻、政策、社会等内容，可以保留必要的专业词汇，但不要为了显得高级而堆砌术语。
+7. 目标是让 B1 学习者在查少量生词的情况下理解全文，并能够模仿其中的表达。
+8. 不要使用过于书面化、文学化或罕见的表达。`,
+  level2: `你是英语学习材料设计师。
+请将下面的中文内容翻译成适合 CEFR B1+ 至 B2 英语学习者的自然英文。
+要求：
+1. 使用真实英语中常见、自然的表达方式，而不是逐字翻译中文。
+2. 可以使用较丰富的词汇、短语和句型，但避免大量使用罕见或高度专业化的词汇。
+3. 适当使用从句、非谓语结构、被动语态、名词化表达等真实英语中常见的结构。
+4. 保留原文的完整信息和逻辑关系，不要像 Level 1 一样过度简化。
+5. 对中文中隐含的逻辑关系，应根据上下文用自然的英文连接方式表达，例如 although, while, therefore, which, as a result 等。
+6. 可以使用新闻报道、评论文章和正式书面交流中常见的表达。
+7. 不要刻意降低句子复杂度，但也不要为了增加难度而使用生僻表达。
+8. 翻译结果应该像一篇真实的英文文章，而不是"给英语学习者改写过的课文"。
+9. 目标是帮助学习者从简化英语过渡到真实英语。`,
+  level3: `你是一名专业英文编辑。
+请将下面的中文内容翻译成自然、准确、成熟的英文，目标读者为具有 CEFR B2 左右英语水平的学习者。
+要求：
+1. 英文应接近真实新闻、评论文章、正式书面交流或学术通俗写作中的自然表达。
+2. 不要为了照顾英语学习者而主动简化句子结构。
+3. 准确表达原文中的信息、逻辑关系、语气和因果关系。
+4. 可以使用较复杂的从句、非谓语结构、被动语态、名词化结构以及较丰富的连接方式。
+5. 使用英语母语者实际写作中自然的词汇和搭配。
+6. 可以使用中高级词汇，但避免为了增加难度而使用生僻词或文学化表达。
+7. 如果中文表达在英文中没有直接对应的结构，应优先采用自然的英语表达，而不是保留中文句式。
+8. 不要删减原文的重要信息，也不要添加原文不存在的观点。
+9. 最终结果应当像一篇真实的英文文章，而不是英语教材中的练习材料。
+10. 目标是让学习者接触略高于其当前舒适区的真实英语表达。`
+};
+function levelLabel(l){
+  return ({level1:"Level 1", level2:"Level 2", level3:"Level 3"}[l]) || l;
+}
 let curArticle = null;
 
 function renderRead(){
@@ -898,15 +939,15 @@ function renderArticleList(){
   box.innerHTML = '<div class="sec-title">我的文章'+(kw?'（'+list.length+' 篇）':'')+'</div>' + list.map(a=>
     '<div class="list-card" style="cursor:pointer" onclick="showArticle(\''+a.id+'\')">'+
       '<div class="row"><span class="zh">'+esc(a.title)+'</span>'+
-      '<span class="text-xs text-muted">'+a.level+' · '+fmt(a.time)+'</span></div>'+
+      '<span class="text-xs text-muted">'+levelLabel(a.level)+' · '+fmt(a.time)+'</span></div>'+
     '</div>'
   ).join("");
 }
 document.getElementById("readSearch").addEventListener("input", renderArticleList);
-document.querySelectorAll("#lvlA2,#lvlB1,#lvlB2").forEach(b=>{
+document.querySelectorAll("#lvl1,#lvl2,#lvl3").forEach(b=>{
   b.addEventListener("click", ()=>{
-    readLevel = b.id.replace("lvl","");
-    ["lvlA2","lvlB1","lvlB2"].forEach(id=>{
+    readLevel = "level"+b.id.replace("lvl","");
+    ["lvl1","lvl2","lvl3"].forEach(id=>{
       const el=document.getElementById(id);
       el.className = "btn " + (id===b.id?"btn-primary":"btn-outline");
     });
@@ -929,9 +970,10 @@ document.getElementById("btnGenArticle").addEventListener("click", async ()=>{
   const btn = document.getElementById("btnGenArticle");
   btn.disabled = true; btn.textContent = "生成中……";
   try{
+    const levelPrompt = LEVEL_PROMPTS[readLevel] || LEVEL_PROMPTS.level1;
     const r = await tryChat([
-      { role:"system", content:"你是英语分级改写老师。把用户提供的材料改写成目标水平的英文文章：如果材料是英文，直接按水平简化改写（保留原意与关键信息）；如果材料是中文，先翻译成英文，再按水平改写。输出严格 JSON：title(中文标题), content(英文全文，用\\n\\n分段), sourceLanguage(原文语言，zh/en/other), learningItems(3-8个对学习者最有价值的英文表达数组，每项 {text(英文表达，必须完整出现在content中), itemType(word/phrase/sentence), meaningZh(中文释义), usage(中文使用说明含搭配/易错点), sourceSentence(该表达在content中的原句)})。" },
-      { role:"user", content:"目标水平："+readLevel+"（CEFR，A2入门/B1中级/B2中高级）\n原文：\n"+text.slice(0,4000) }
+      { role:"system", content:"你是英语分级改写老师。把用户提供的材料改写成目标水平的英文文章：如果材料是英文，直接按水平简化改写（保留原意与关键信息）；如果材料是中文，先翻译成英文，再按水平改写。输出严格 JSON：title(中文标题), content(英文全文，用\\n\\n分段), sourceLanguage(原文语言，zh/en/other), learningItems(3-8个对学习者最有价值的英文表达数组，每项 {text(英文表达，必须完整出现在content中), itemType(word/phrase/sentence), meaningZh(中文释义), usage(中文使用说明含搭配/易错点), sourceSentence(该表达在content中的原句)})。\n\n"+levelPrompt },
+      { role:"user", content:"目标水平："+readLevel+"（Level 1≈CEFR B1，Level 2≈B1+至B2，Level 3≈B2）\n原文：\n"+text.slice(0,4000) }
     ]);
     const title = r.title || "改编文章";
     const content = String(r.content||"").trim();
@@ -976,7 +1018,7 @@ function showArticle(id){
   box.innerHTML =
     '<div class="read-card">'+
       '<div class="row"><span class="q-text" style="font-size:18px">'+esc(a.title)+'</span>'+
-      '<span class="text-xs text-muted">'+a.level+'</span></div>'+
+      '<span class="text-xs text-muted">'+levelLabel(a.level)+'</span></div>'+
       '<div class="read-tabs">'+
         '<button id="rtAdapted" class="active">改写文章</button>'+
         '<button id="rtOriginal">原始材料</button>'+
