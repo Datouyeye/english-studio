@@ -378,7 +378,7 @@ mark.flash{background:var(--primary);color:#fff;border-radius:2px}
       <div class="rt-title">阅读辅助</div>
       <button type="button" id="rtBionic" title="Bionic 加粗：单词前半加粗">加粗</button>
       <button type="button" id="rtFocus" title="行聚焦：跟随鼠标高亮当前行">聚焦</button>
-      <button type="button" id="rtRuler" title="阅读标尺：J/K 逐段移动，标记读到的段落">标尺</button>
+      <button type="button" id="rtRuler" title="阅读标尺：右击段落标记进度，J/K 逐段移动">标尺</button>
       <button type="button" id="rtFont" title="阅读友好字体">字体</button>
       <div class="rt-sep"></div>
       <button type="button" id="rtSize" title="字号大小">大小</button>
@@ -1547,6 +1547,18 @@ document.addEventListener("keydown", e=>{
   const k = e.key.toLowerCase();
   if(k === "j"){ moveRuler(1); e.preventDefault(); }
   else if(k === "k"){ moveRuler(-1); e.preventDefault(); }
+});
+document.addEventListener("contextmenu", e=>{
+  if(!rulerOn || !curArticle) return;
+  const p = e.target.closest("#readBodyWrap .read-article .para-text");
+  if(!p) return;
+  const paras = rulerParas();
+  const idx = [...paras].indexOf(p);
+  if(idx < 0) return;
+  e.preventDefault();
+  rulerMap[curArticle.id] = idx;
+  localStorage.setItem("es_ruler_map", JSON.stringify(rulerMap));
+  applyReadRuler();
 });
 
 /* ========== 已标记词悬停解释卡 ========== */
