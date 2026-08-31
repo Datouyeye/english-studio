@@ -815,7 +815,7 @@ function readFavItemHtml(it){
 }
 function delReadFavItem(id){
   const a = articles.find(x=>(x.items||[]).some(i=>i.id===id));
-  if(!a || !window.confirm("确定删除这条知识点吗？")) return;
+  if(!a) return;
   a.items = (a.items||[]).filter(i=>i.id!==id);
   LS.set("es_articles", articles);
   renderReadFavs();
@@ -1257,7 +1257,7 @@ function bindReadResize(){
   });
 }
 function delItem(el){
-  if(!curArticle || !window.confirm("确定删除这条知识点吗？")) return;
+  if(!curArticle) return;
   const t = el.closest(".item-card").querySelector(".t").textContent;
   curArticle.items = (curArticle.items||[]).filter(i=>i.text!==t);
   LS.set("es_articles", articles);
