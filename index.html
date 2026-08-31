@@ -1147,9 +1147,11 @@ function showArticle(id){
       '<p class="read-hint">提示：选中文章中的单词、短语或句子，可解释并加入知识点卡片；AI 推荐的知识点会自动标亮。</p>'+
     '</div>';
   renderAdapted(a);
+  curTab = "adapted";
+  requestAnimationFrame(restoreTabScroll);
   bindReadResize();
-  document.getElementById("rtAdapted").addEventListener("click", ()=>renderAdapted(a));
-  document.getElementById("rtOriginal").addEventListener("click", ()=>renderOriginal(a));
+  document.getElementById("rtAdapted").addEventListener("click", ()=>{ saveTabScroll(); curTab = "adapted"; renderAdapted(a); requestAnimationFrame(restoreTabScroll); });
+  document.getElementById("rtOriginal").addEventListener("click", ()=>{ saveTabScroll(); curTab = "original"; renderOriginal(a); requestAnimationFrame(restoreTabScroll); });
   box.addEventListener("click", (e)=>{
     const m = e.target.closest("mark");
     if(m && m.dataset.term) scrollToCard(m.dataset.term);
@@ -1562,6 +1564,19 @@ document.addEventListener("contextmenu", e=>{
 });
 
 /* ========== 已标记词悬停解释卡 ========== */
+let curTab = "adapted";
+const tabScrollMap = LS.get("es_tab_scroll", {});
+function saveTabScroll(){
+  if(!curArticle) return;
+  tabScrollMap[curArticle.id] = tabScrollMap[curArticle.id] || {};
+  tabScrollMap[curArticle.id][curTab] = window.scrollY;
+  localStorage.setItem("es_tab_scroll", JSON.stringify(tabScrollMap));
+}
+function restoreTabScroll(){
+  if(!curArticle) return;
+  const y = (tabScrollMap[curArticle.id] || {})[curTab] || 0;
+  window.scrollTo({ top: y, behavior: "instant" });
+}
 let hoverPop = null;
 let hoverTerm = "";
 function hideHoverCard(){
