@@ -26,14 +26,14 @@ a{color:inherit;text-decoration:none}
 
 /* ===== 顶部导航 ===== */
 .app-header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
-.nav{max-width:820px;margin:0 auto;display:flex;align-items:center;gap:4px;padding:10px 16px;flex-wrap:wrap}
+.nav{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:4px;padding:10px 16px;flex-wrap:wrap}
 .brand{font-weight:700;font-size:16px;margin-right:auto;letter-spacing:.3px}
 .nav-item{font-size:13.5px;color:var(--text-muted);padding:6px 12px;border-radius:var(--radius-md);transition:all .15s}
 .nav-item:hover{color:var(--text);background:var(--primary-soft)}
 .nav-item.active{color:var(--primary);background:var(--primary-soft);font-weight:600}
 
-main{max-width:640px;margin:0 auto;padding:28px 16px 60px;transition:max-width .2s}
-main.wide{max-width:880px}
+main{max-width:800px;margin:0 auto;padding:28px 16px 60px;transition:max-width .2s}
+main.wide{max-width:1240px}
 .view{display:none}
 .view.active{display:block;animation:fadeIn .18s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
@@ -155,12 +155,27 @@ textarea.input{resize:vertical;line-height:1.7}
 .read-cards{position:relative;min-width:0;align-self:stretch}
 .read-cards .item-card{position:absolute;left:0;right:0;margin:0}
 .read-cards.static .item-card{position:static;margin-bottom:8px}
+.read-tools{position:fixed;right:18px;top:50%;transform:translateY(-50%);z-index:60;width:68px;display:flex;flex-direction:column;gap:2px;background:var(--paper);border:1px solid var(--border);border-radius:var(--radius-md);padding:8px 6px;box-shadow:var(--shadow-card)}
+.read-tools .rt-title{font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:4px}
+.read-tools button{width:100%;padding:7px 0;font-size:12px;color:var(--text-muted);border-radius:calc(var(--radius-md) - 4px);transition:all .15s}
+.read-tools button:hover{background:var(--primary-soft);color:var(--primary)}
+.read-tools button.active{background:var(--primary-soft);color:var(--primary);font-weight:600}
+.read-tools .rt-sep{height:1px;background:var(--border);margin:4px 2px}
+.read-tools .rt-pop{position:absolute;right:calc(100% + 10px);bottom:4px;display:none;flex-direction:row;gap:4px;background:var(--paper);border:1px solid var(--border);border-radius:var(--radius-md);padding:6px;box-shadow:var(--shadow-card)}
+.read-tools .rt-pop.open{display:flex}
+.read-tools .rt-pop button{width:38px}
+.focus-band{position:fixed;left:0;right:0;height:46px;pointer-events:none;z-index:55;display:none;border-top:2px solid var(--primary);border-bottom:2px solid var(--primary);box-shadow:0 0 0 9999px rgba(15,23,42,.12)}
+#articleView.dysfont .para-text,#articleView.dysfont .orig-text{font-family:"OpenDyslexic","Comic Sans MS","Microsoft YaHei",sans-serif;letter-spacing:.3px}
+.read-article .para-text{font-size:var(--read-fs,16.5px)}
+@font-face{font-family:"OpenDyslexic";src:url("https://cdn.jsdelivr.net/fontsource/fonts/open-dyslexic@latest/latin-400-normal.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"OpenDyslexic";src:url("https://cdn.jsdelivr.net/fontsource/fonts/open-dyslexic@latest/latin-700-normal.woff2") format("woff2");font-weight:700;font-display:swap}
 .item-card.flash{outline:2px solid var(--primary);outline-offset:2px}
 mark.flash{background:var(--primary);color:#fff;border-radius:2px}
 @media(max-width:719px){
   .read-body{grid-template-columns:minmax(0,1fr)}
   .read-cards{height:auto!important}
   .read-cards .item-card{position:static;margin-bottom:8px}
+  .read-tools{display:none}
 }
 .item-card{border:1px solid var(--border);border-radius:var(--radius-md);background:var(--highlight);padding:10px 12px;font-size:12.5px;line-height:1.6;margin-bottom:8px}
 .item-card .t{font-weight:600;font-size:13.5px;color:var(--text)}
@@ -350,6 +365,19 @@ mark.flash{background:var(--primary);color:#fff;border-radius:2px}
       <button id="btnBackToList" class="btn btn-outline" onclick="backToList()" style="font-size:13px">‹ 返回文章列表</button>
     </div>
     <div id="articleView" class="mt-4"></div>
+    <aside class="read-tools" aria-label="阅读辅助">
+      <div class="rt-title">阅读辅助</div>
+      <button type="button" id="rtBionic" title="Bionic 加粗：单词前半加粗">加粗</button>
+      <button type="button" id="rtFocus" title="行聚焦：跟随鼠标高亮当前行">聚焦</button>
+      <button type="button" id="rtFont" title="阅读友好字体">字体</button>
+      <div class="rt-sep"></div>
+      <button type="button" id="rtSize" title="字号大小">大小</button>
+      <div class="rt-pop" id="rtSizePop">
+        <button type="button" id="rtSmaller" title="减小字号">A-</button>
+        <button type="button" id="rtLarger" title="增大字号">A+</button>
+      </div>
+    </aside>
+    <div class="focus-band"></div>
   </section>
 
   <!-- ===== 学习库 ===== -->
@@ -1109,9 +1137,11 @@ function showArticle(id){
       '<p class="read-hint">提示：选中文章中的单词、短语或句子，可解释并加入知识点卡片；AI 推荐的知识点会自动标亮。</p>'+
     '</div>';
   renderAdapted(a);
+  applyReadAssist();
+  applyBionic();
   bindReadResize();
-  document.getElementById("rtAdapted").addEventListener("click", ()=>renderAdapted(a));
-  document.getElementById("rtOriginal").addEventListener("click", ()=>renderOriginal(a));
+  document.getElementById("rtAdapted").addEventListener("click", ()=>{ renderAdapted(a); applyReadAssist(); applyBionic(); });
+  document.getElementById("rtOriginal").addEventListener("click", ()=>{ renderOriginal(a); applyReadAssist(); applyBionic(); });
   box.addEventListener("click", (e)=>{
     const m = e.target.closest("mark");
     if(m && m.dataset.term) scrollToCard(m.dataset.term);
@@ -1362,6 +1392,88 @@ function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;
 
 boot();
 renderPractice();
+
+/* ========== 阅读辅助 ========== */
+const READ_SIZES = [14, 15.5, 16.5, 18, 20, 22];
+const readAssist = Object.assign({ bionic: false, focus: false, dysfont: false, fs: 2 }, LS.get("es_readassist", {}));
+function saveReadAssist(){ localStorage.setItem("es_readassist", JSON.stringify(readAssist)); }
+function setToolActive(id, on){ const b = document.getElementById(id); if(b) b.classList.toggle("active", on); }
+function applyReadAssist(){
+  const box = document.getElementById("articleView");
+  if(box){
+    box.style.setProperty("--read-fs", READ_SIZES[readAssist.fs] + "px");
+    box.classList.toggle("dysfont", readAssist.dysfont);
+  }
+  const band = document.querySelector(".focus-band");
+  if(band && !readAssist.focus) band.style.display = "none";
+  setToolActive("rtBionic", readAssist.bionic);
+  setToolActive("rtFocus", readAssist.focus);
+  setToolActive("rtFont", readAssist.dysfont);
+}
+function bionicWord(m){
+  const cut = Math.max(1, Math.round(m.length * 0.4));
+  return "<b>" + m.slice(0, cut) + "</b>" + m.slice(cut);
+}
+function bionicTransform(root){
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while(walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach(n=>{
+    if(!/[A-Za-z]/.test(n.nodeValue)) return;
+    const span = document.createElement("span");
+    span.innerHTML = n.nodeValue.replace(/[A-Za-z][A-Za-z'-]*/g, bionicWord);
+    const frag = document.createDocumentFragment();
+    while(span.firstChild) frag.appendChild(span.firstChild);
+    n.parentNode.replaceChild(frag, n);
+  });
+}
+function applyBionic(){
+  if(!readAssist.bionic) return;
+  const box = document.getElementById("articleView");
+  if(!box) return;
+  box.querySelectorAll("#readBodyWrap .read-article, #readBodyWrap .orig-text").forEach(bionicTransform);
+}
+function rerenderArticle(){
+  if(!curArticle) return;
+  const orig = document.getElementById("rtOriginal");
+  if(orig && orig.className === "active") renderOriginal(curArticle);
+  else renderAdapted(curArticle);
+}
+function toggleReadTool(key){
+  readAssist[key] = !readAssist[key];
+  saveReadAssist();
+  if(key === "bionic") rerenderArticle();
+  applyReadAssist();
+  if(key === "bionic") applyBionic();
+}
+document.getElementById("rtBionic").addEventListener("click", ()=>toggleReadTool("bionic"));
+document.getElementById("rtFocus").addEventListener("click", ()=>toggleReadTool("focus"));
+document.getElementById("rtFont").addEventListener("click", ()=>toggleReadTool("dysfont"));
+document.getElementById("rtSize").addEventListener("click", ()=>{
+  document.getElementById("rtSizePop").classList.toggle("open");
+});
+document.getElementById("rtSmaller").addEventListener("click", ()=>{
+  readAssist.fs = Math.max(0, readAssist.fs - 1);
+  saveReadAssist(); applyReadAssist();
+});
+document.getElementById("rtLarger").addEventListener("click", ()=>{
+  readAssist.fs = Math.min(READ_SIZES.length - 1, readAssist.fs + 1);
+  saveReadAssist(); applyReadAssist();
+});
+document.addEventListener("click", e=>{
+  const pop = document.getElementById("rtSizePop");
+  if(pop && pop.classList.contains("open") && e.target.id !== "rtSize" && !e.target.closest("#rtSizePop")) pop.classList.remove("open");
+});
+document.addEventListener("mousemove", e=>{
+  const band = document.querySelector(".focus-band");
+  if(!band || !readAssist.focus) return;
+  const box = document.getElementById("articleView");
+  if(!box || !box.contains(e.target)){ band.style.display = "none"; return; }
+  band.style.display = "block";
+  band.style.top = (e.clientY - 23) + "px";
+});
+applyReadAssist();
+applyBionic();
 </script>
 </body>
 </html>
