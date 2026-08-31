@@ -1137,11 +1137,9 @@ function showArticle(id){
       '<p class="read-hint">提示：选中文章中的单词、短语或句子，可解释并加入知识点卡片；AI 推荐的知识点会自动标亮。</p>'+
     '</div>';
   renderAdapted(a);
-  applyReadAssist();
-  applyBionic();
   bindReadResize();
-  document.getElementById("rtAdapted").addEventListener("click", ()=>{ renderAdapted(a); applyReadAssist(); applyBionic(); });
-  document.getElementById("rtOriginal").addEventListener("click", ()=>{ renderOriginal(a); applyReadAssist(); applyBionic(); });
+  document.getElementById("rtAdapted").addEventListener("click", ()=>renderAdapted(a));
+  document.getElementById("rtOriginal").addEventListener("click", ()=>renderOriginal(a));
   box.addEventListener("click", (e)=>{
     const m = e.target.closest("mark");
     if(m && m.dataset.term) scrollToCard(m.dataset.term);
@@ -1167,12 +1165,16 @@ function renderAdapted(a){
     '<div class="read-cards">'+items.map((it,i)=>cardHtml(it,i)).join("")+'</div>'+
   '</div>';
   placeCards();
+  applyReadAssist();
+  applyBionic();
 }
 function renderOriginal(a){
   const wrap = document.getElementById("readBodyWrap");
   const tabs = [document.getElementById("rtAdapted"), document.getElementById("rtOriginal")];
   if(tabs[0]){ tabs[0].className = ""; tabs[1].className = "active"; }
   wrap.innerHTML = '<div class="orig-text">'+(a.original ? esc(a.original) : '<span class="text-muted">这篇文章没有保存原文。</span>')+'</div>';
+  applyReadAssist();
+  applyBionic();
 }
 function cardHtml(it, i){
   const typeLabel = {word:"单词", phrase:"短语", sentence:"句子"}[it.itemType] || "单词";
@@ -1431,7 +1433,11 @@ function applyBionic(){
   if(!readAssist.bionic) return;
   const box = document.getElementById("articleView");
   if(!box) return;
-  box.querySelectorAll("#readBodyWrap .read-article, #readBodyWrap .orig-text").forEach(bionicTransform);
+  box.querySelectorAll("#readBodyWrap .read-article, #readBodyWrap .orig-text").forEach(el=>{
+    if(el.dataset.bionic) return;
+    el.dataset.bionic = "1";
+    bionicTransform(el);
+  });
 }
 function rerenderArticle(){
   if(!curArticle) return;
@@ -1443,8 +1449,7 @@ function toggleReadTool(key){
   readAssist[key] = !readAssist[key];
   saveReadAssist();
   if(key === "bionic") rerenderArticle();
-  applyReadAssist();
-  if(key === "bionic") applyBionic();
+  else applyReadAssist();
 }
 document.getElementById("rtBionic").addEventListener("click", ()=>toggleReadTool("bionic"));
 document.getElementById("rtFocus").addEventListener("click", ()=>toggleReadTool("focus"));
