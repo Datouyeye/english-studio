@@ -170,6 +170,9 @@ textarea.input{resize:vertical;line-height:1.7}
 .read-ruler .rr-up{left:-4px}
 .read-ruler .rr-down{left:24px}
 .read-article .para-text.ruler-cur{background:var(--highlight);border-radius:6px;box-shadow:0 0 0 6px var(--highlight)}
+.hover-pop{position:fixed;z-index:98;display:none;background:var(--paper);border:1px solid var(--border);border-radius:10px;padding:10px 12px;box-shadow:0 6px 24px rgba(0,0,0,.14);max-width:300px;font-size:12.5px;line-height:1.7;pointer-events:none}
+.hover-pop .hp-use{color:var(--text-muted);font-size:12px}
+.hover-pop .hp-ex{font-style:italic;color:var(--text-muted);font-size:12px}
 .focus-band{position:fixed;left:0;right:0;height:46px;pointer-events:none;z-index:55;display:none;border-top:2px solid var(--primary);border-bottom:2px solid var(--primary);box-shadow:0 0 0 9999px rgba(15,23,42,.12)}
 #articleView.dysfont .para-text,#articleView.dysfont .orig-text{font-family:"OpenDyslexic","Comic Sans MS","Microsoft YaHei",sans-serif;letter-spacing:.3px}
 .read-article .para-text{font-size:var(--read-fs,16.5px)}
@@ -1544,6 +1547,43 @@ document.addEventListener("keydown", e=>{
   const k = e.key.toLowerCase();
   if(k === "j"){ moveRuler(1); e.preventDefault(); }
   else if(k === "k"){ moveRuler(-1); e.preventDefault(); }
+});
+
+/* ========== 已标记词悬停解释卡 ========== */
+let hoverPop = null;
+let hoverTerm = "";
+function hideHoverCard(){
+  if(hoverPop){ hoverPop.remove(); hoverPop = null; }
+  hoverTerm = "";
+}
+function showHoverCard(m){
+  if(!curArticle) return;
+  const item = (curArticle.items||[]).find(i=>i.text === m.dataset.term);
+  if(!item) return;
+  if(!hoverPop){
+    hoverPop = document.createElement("div");
+    hoverPop.className = "hover-pop";
+    document.body.appendChild(hoverPop);
+  }
+  hoverTerm = m.dataset.term;
+  const type = item.itemType === "sentence" ? "句子" : item.itemType === "phrase" ? "短语" : "单词";
+  hoverPop.innerHTML =
+    '<b>'+esc(item.text)+'</b> <span class="hp-use">'+type+'</span>'+
+    (item.meaningZh ? '<div>'+esc(item.meaningZh)+'</div>' : '')+
+    (item.usage ? '<div class="hp-use">'+esc(item.usage)+'</div>' : '')+
+    (item.example ? '<div class="hp-ex">'+esc(item.example)+'</div>' : '');
+  hoverPop.style.display = "block";
+  const r = m.getBoundingClientRect();
+  hoverPop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - hoverPop.offsetWidth - 10)) + "px";
+  hoverPop.style.top = Math.min(r.bottom + 8, window.innerHeight - hoverPop.offsetHeight - 10) + "px";
+}
+document.addEventListener("mouseover", e=>{
+  const m = e.target.closest("mark");
+  if(m && m.dataset.term){
+    if(m.dataset.term !== hoverTerm) showHoverCard(m);
+  }else if(hoverPop){
+    hideHoverCard();
+  }
 });
 </script>
 </body>
