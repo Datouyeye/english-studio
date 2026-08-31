@@ -164,6 +164,12 @@ textarea.input{resize:vertical;line-height:1.7}
 .read-tools .rt-pop{position:absolute;right:calc(100% + 10px);bottom:4px;display:none;flex-direction:row;gap:4px;background:var(--paper);border:1px solid var(--border);border-radius:var(--radius-md);padding:6px;box-shadow:var(--shadow-card)}
 .read-tools .rt-pop.open{display:flex}
 .read-tools .rt-pop button{width:38px}
+.read-ruler{position:absolute;left:0;right:0;height:0;border-bottom:3px solid var(--primary);pointer-events:none;z-index:5}
+.read-ruler .rr-btn{pointer-events:auto;position:absolute;top:5px;width:22px;height:22px;border-radius:50%;background:var(--paper);border:1px solid var(--border);font-size:10px;line-height:1;color:var(--text-muted);box-shadow:var(--shadow-card)}
+.read-ruler .rr-btn:hover{color:var(--primary);border-color:var(--primary)}
+.read-ruler .rr-up{left:-4px}
+.read-ruler .rr-down{left:24px}
+.read-article .para-text.ruler-cur{background:var(--highlight);border-radius:6px;box-shadow:0 0 0 6px var(--highlight)}
 .focus-band{position:fixed;left:0;right:0;height:46px;pointer-events:none;z-index:55;display:none;border-top:2px solid var(--primary);border-bottom:2px solid var(--primary);box-shadow:0 0 0 9999px rgba(15,23,42,.12)}
 #articleView.dysfont .para-text,#articleView.dysfont .orig-text{font-family:"OpenDyslexic","Comic Sans MS","Microsoft YaHei",sans-serif;letter-spacing:.3px}
 .read-article .para-text{font-size:var(--read-fs,16.5px)}
@@ -369,6 +375,7 @@ mark.flash{background:var(--primary);color:#fff;border-radius:2px}
       <div class="rt-title">阅读辅助</div>
       <button type="button" id="rtBionic" title="Bionic 加粗：单词前半加粗">加粗</button>
       <button type="button" id="rtFocus" title="行聚焦：跟随鼠标高亮当前行">聚焦</button>
+      <button type="button" id="rtRuler" title="阅读标尺：J/K 逐段移动，标记读到的段落">标尺</button>
       <button type="button" id="rtFont" title="阅读友好字体">字体</button>
       <div class="rt-sep"></div>
       <button type="button" id="rtSize" title="字号大小">大小</button>
@@ -1167,6 +1174,7 @@ function renderAdapted(a){
   placeCards();
   applyReadAssist();
   applyBionic();
+  applyReadRuler();
 }
 function renderOriginal(a){
   const wrap = document.getElementById("readBodyWrap");
@@ -1175,6 +1183,7 @@ function renderOriginal(a){
   wrap.innerHTML = '<div class="orig-text">'+(a.original ? esc(a.original) : '<span class="text-muted">这篇文章没有保存原文。</span>')+'</div>';
   applyReadAssist();
   applyBionic();
+  hideReadRuler();
 }
 function cardHtml(it, i){
   const typeLabel = {word:"单词", phrase:"短语", sentence:"句子"}[it.itemType] || "单词";
@@ -1479,6 +1488,63 @@ document.addEventListener("mousemove", e=>{
 });
 applyReadAssist();
 applyBionic();
+
+/* ========== 阅读标尺（J/K 逐段移动） ========== */
+let rulerOn = false;
+let rulerEl = null;
+const rulerMap = LS.get("es_ruler_map", {});
+function rulerParas(){
+  return document.querySelectorAll("#readBodyWrap .read-article .para-text");
+}
+function hideReadRuler(){
+  if(rulerEl){ rulerEl.remove(); rulerEl = null; }
+  document.querySelectorAll(".ruler-cur").forEach(p=>p.classList.remove("ruler-cur"));
+}
+function applyReadRuler(){
+  hideReadRuler();
+  if(!rulerOn || !curArticle) return;
+  const paras = rulerParas();
+  if(!paras.length) return;
+  const idx = Math.min(rulerMap[curArticle.id]||0, paras.length-1);
+  const para = paras[idx];
+  para.classList.add("ruler-cur");
+  rulerEl = document.createElement("div");
+  rulerEl.className = "read-ruler";
+  const up = document.createElement("button");
+  up.type = "button"; up.className = "rr-btn rr-up"; up.textContent = "▲"; up.title = "上一段 (K)";
+  up.addEventListener("click", e=>{ e.stopPropagation(); moveRuler(-1); });
+  const down = document.createElement("button");
+  down.type = "button"; down.className = "rr-btn rr-down"; down.textContent = "▼"; down.title = "下一段 (J)";
+  down.addEventListener("click", e=>{ e.stopPropagation(); moveRuler(1); });
+  rulerEl.appendChild(up); rulerEl.appendChild(down);
+  rulerEl.style.top = (para.offsetTop + para.offsetHeight - 2) + "px";
+  para.parentElement.appendChild(rulerEl);
+}
+function moveRuler(delta){
+  if(!rulerOn || !curArticle) return;
+  const paras = rulerParas();
+  if(!paras.length) return;
+  let idx = Math.min(rulerMap[curArticle.id]||0, paras.length-1) + delta;
+  idx = Math.max(0, Math.min(idx, paras.length-1));
+  rulerMap[curArticle.id] = idx;
+  localStorage.setItem("es_ruler_map", JSON.stringify(rulerMap));
+  applyReadRuler();
+  if(rulerEl) rulerEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+function toggleRuler(){
+  rulerOn = !rulerOn;
+  setToolActive("rtRuler", rulerOn);
+  if(rulerOn) applyReadRuler(); else hideReadRuler();
+}
+document.getElementById("rtRuler").addEventListener("click", toggleRuler);
+document.addEventListener("keydown", e=>{
+  if(!rulerOn || e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  if(t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+  const k = e.key.toLowerCase();
+  if(k === "j"){ moveRuler(1); e.preventDefault(); }
+  else if(k === "k"){ moveRuler(-1); e.preventDefault(); }
+});
 </script>
 </body>
 </html>
